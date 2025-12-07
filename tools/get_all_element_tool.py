@@ -1,25 +1,19 @@
-from math import e
-import re
-from typing import Optional, Type
-import base64
+from typing import Optional
 
-from pydantic import BaseModel, Field
 from playwright.async_api import Page
 from langchain.messages import ToolMessage
 from langchain.tools import ToolRuntime
 from langchain_community.tools.playwright import utils
 from langchain_community.tools.playwright.base import BaseBrowserTool
-from langgraph.types import Command
 from langchain_core.callbacks import (
     AsyncCallbackManagerForToolRun,
     CallbackManagerForToolRun,
 )
-from regex import T
 
 
-class GetPageImg(BaseBrowserTool):
-    name: str = "get_page_img"
-    description: str = "Capture a screenshot of the current webpage"
+class GetAllElementTool(BaseBrowserTool):
+    name: str = "get_all_element_tool"
+    description: str = "Get all elements' content from the current webpage"
 
     def _run(
         self,
@@ -32,11 +26,10 @@ class GetPageImg(BaseBrowserTool):
         page:Page = utils.aget_current_page(self.async_browser)
         from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
         try:
-            img = page.screenshot(path="./screen/fill.png")
+            return page.content()
         except PlaywrightTimeoutError:
-            return "Unable to capture screenshot"
-        return "screenshot captured successfully"
-
+            return "Unable to get page content"
+        
     async def _arun(
         self,
         runtime:ToolRuntime,
@@ -48,10 +41,7 @@ class GetPageImg(BaseBrowserTool):
         page:Page = await utils.aget_current_page(self.async_browser)
         from playwright.async_api import TimeoutError as PlaywrightTimeoutError
         try:
-            img = await page.screenshot(type="png")
-            imgbase64 = base64.b64encode(img).decode('utf-8')
-            tool_message=ToolMessage(content_blocks=[{"type":"image","image":f"data:image/png;base64,{imgbase64}"}],tool_call_id=f"{runtime.state['messages'][-1].tool_calls[0]['id']}_get_page_img")
-            return tool_message
+            return await page.content()
         except PlaywrightTimeoutError as err:
             print(f"{err}")
-            return "Unable to capture screenshot"
+            return "Unable to get page content"

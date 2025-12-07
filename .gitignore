@@ -1,0 +1,11 @@
+.env
+/screen/*
+*.pyc
+/**/__pycache__/
+/**/*.pyc
+.DS_Store
+tools/__pycache__/__init__.cpython-311.pyc
+tools/__pycache__/fill_text_tool.cpython-311.pyc
+tools/__pycache__/get_page_img.cpython-311.pyc
+.vscode/
+.pytest_cache/
