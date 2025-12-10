@@ -12,14 +12,16 @@ from sqlalchemy import (
     Boolean
 )
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.ext.hybrid import hybrid_property
 from pgvector.sqlalchemy import Vector
 from .base import Base
+from .mixins import SearchableMixin
 
 class ResponseStatus(enum.Enum):
     SUCCESS = "success"
     FAILURE = "failure"
 
-class AgentTrace(Base):
+class AgentTrace(Base, SearchableMixin):
     """
     存储 Agent 的完整执行链路，用于 RAG 检索“最佳实践”或“历史记忆”。
     """
@@ -32,6 +34,14 @@ class AgentTrace(Base):
     # 用户原始输入 (用于语义检索：寻找相似的任务)
     # 例如："1024杯水...然后登录网站..."
     user_query: Mapped[str] = mapped_column(Text, nullable=False)
+
+    @property
+    def search_content_field(self):
+        return self.user_query
+
+    @property
+    def embedding_field(self):
+        return self.query_embedding
 
     # 完整对话链路 (JSON 格式)
     # 包含：[HumanMessage, AIMessage(CoT), ToolMessage(Result), AIMessage(Final)]
@@ -50,6 +60,11 @@ class AgentTrace(Base):
         default=None,
         comment="Embedding of the user_query"
     )
+    
+    # 别名，用于统一接口 (HybridSearchService 默认使用 .embedding)
+    @hybrid_property
+    def embedding(self):
+        return self.query_embedding
 
     # --- 知识核心 (RAG 的 Payload) ---
 

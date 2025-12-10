@@ -32,6 +32,8 @@ from tools import (
     CaptureElementContextTool
 )
 from dotenv import load_dotenv
+
+from utils.my_vcr import MyVcr
 if TYPE_CHECKING:
     from playwright.async_api import Browser as AsyncBrowser
     from playwright.sync_api import Browser as SyncBrowser
@@ -39,10 +41,11 @@ load_dotenv()
 QFNU_USERNAME=os.environ["QFNU_USERNAME"]
 QFNU_PASSWORD=os.environ["QFNU_PASSWORD"]
 
-@vcr.use_cassette('test/vcr_cassettes/test_browser_agent.yaml')    
+@MyVcr.use_cassette('test/vcr_cassettes/test_browser_agent.yaml')    
 async def test_request():
+
     async with async_playwright() as p:
-        async with await p.chromium.launch() as browser:
+        async with await p.chromium.launch()as browser:
             tools = [
                 FillTextTool(async_browser=browser),
                 ClickTool(async_browser=browser, playwright_timeout=10000,visible_only=False),

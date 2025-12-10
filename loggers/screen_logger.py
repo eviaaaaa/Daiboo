@@ -2,21 +2,19 @@ import asyncio
 import time
 import os
 from typing import Any
-import dashscope
-import dashscope.model
-import dashscope.models
+import jieba
 from playwright.async_api import Page
 from langchain.agents.middleware import  after_agent,wrap_tool_call,types,before_agent
 from langchain_community.tools.playwright.base import BaseBrowserTool
 from langchain_community.tools.playwright import utils
-from langchain.embeddings import Embeddings
-from langchain.messages import HumanMessage
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from entity import MyState
 from entity.agent_trace import AgentTrace, ResponseStatus
 from database import engine
-from utils import QwenEmbeddings
+from utils import  qwen_embeddings
+from rag.question_rag_pgvector import save_agent_trace_to_pgvector
 
 
 
@@ -88,7 +86,7 @@ async def log_response_to_database(state:types.StateT, runtime) -> None:
 
     # 4. 生成 Embedding (需要配置 DashScopeEmbeddings)
     try:
-        embeddings = QwenEmbeddings()
+        embeddings = qwen_embeddings
         vector = embeddings.embed_documents([user_query])
     except Exception as e:
         print(f"Embedding generation failed: {e}")
@@ -99,6 +97,11 @@ async def log_response_to_database(state:types.StateT, runtime) -> None:
     execution_duration = None
     if start_time is not None:
         execution_duration = time.time() - start_time  # 单位：秒，float
+    
+    # 中文分词
+    seg_list = jieba.cut(user_query)
+    seg_content = " ".join(seg_list)
+
     # 5. 创建 AgentTrace 对象
     trace = AgentTrace(
         user_query=user_query,
@@ -116,17 +119,12 @@ async def log_response_to_database(state:types.StateT, runtime) -> None:
             "agent_runtime": str(runtime),
             "model": messages[-1].response_metadata.get('model_name') if messages and hasattr(messages[-1], 'response_metadata') else "unknown"
         },
-        status=ResponseStatus.SUCCESS
+        status=ResponseStatus.SUCCESS,
+        fts_vector=func.to_tsvector('simple', seg_content)
     )
 
     # 6. 保存到数据库
-    try:
-        with Session(engine) as session:
-            session.add(trace)
-            session.commit()
-            print(f"Agent trace logged to database with ID: {trace.id}")
-    except Exception as e:
-        print(f"Failed to log agent trace to database: {e}")
+    save_agent_trace_to_pgvector(trace)
 
 
 @wrap_tool_call
@@ -143,7 +141,13 @@ async def log_playwright_tool_call(
         page:Page =await utils.aget_current_page(tool.async_browser)
         session_id = request.state['messages'][0].id
         path=f"./screen/{session_id}/{time.time()}{request.tool_call['id']}_call.png"
-        await page.screenshot(path=path)
+        try:
+            # 增加超时时间到 5000ms (5秒)，并捕获异常，避免截图失败导致整个任务失败
+            # 如果页面加载很慢，可以适当增加，或者设置为 full_page=False
+            await page.screenshot(path=path, timeout=5000)
+        except Exception as e:
+            print(f"Warning: Failed to take screenshot for tool {tool.name}: {e}")
+        
         print(f"Playwright Tool Called: {tool.name}")
         return response
     else:

@@ -541,7 +541,10 @@ class CaptureElementContextTool(BaseBrowserTool):
             
             # 3. 获取元素边界框和视口尺寸
             bounding_box = await element.bounding_box()
-            viewport_size = {"width": page.viewport_size["width"], "height": page.viewport_size["height"]}
+            if page.viewport_size:
+                viewport_size = {"width": page.viewport_size["width"], "height": page.viewport_size["height"]}
+            else:
+                viewport_size = await page.evaluate("() => ({width: window.innerWidth, height: window.innerHeight})")
             
             if not bounding_box:
                 raise ValueError("无法获取元素边界框")
@@ -558,15 +561,21 @@ class CaptureElementContextTool(BaseBrowserTool):
             screenshot_path = self._get_screenshot_path(element_description, screenshot_dir)
             
             # 6. 截取计算区域的截图
-            await page.screenshot(
-                path=str(screenshot_path),
-                clip={
-                    "x": capture_area["x"],
-                    "y": capture_area["y"],
-                    "width": capture_area["width"],
-                    "height": capture_area["height"]
-                }
-            )
+            try:
+                await page.screenshot(
+                    path=str(screenshot_path),
+                    clip={
+                        "x": capture_area["x"],
+                        "y": capture_area["y"],
+                        "width": capture_area["width"],
+                        "height": capture_area["height"]
+                    },
+                    timeout=10000  # 10秒超时
+                )
+            except Exception as e:
+                # 如果带 clip 的截图失败（例如区域超出视口），尝试截取全屏或报错
+                logger.error(f"截图失败: {e}")
+                raise e
             
             # 7. （可选）提取周围文本
             surrounding_text = ""
@@ -638,7 +647,10 @@ class CaptureElementContextTool(BaseBrowserTool):
             
             # 3. 获取元素边界框和视口尺寸
             bounding_box = element.bounding_box()
-            viewport_size = {"width": page.viewport_size["width"], "height": page.viewport_size["height"]}
+            if page.viewport_size:
+                viewport_size = {"width": page.viewport_size["width"], "height": page.viewport_size["height"]}
+            else:
+                viewport_size = page.evaluate("() => ({width: window.innerWidth, height: window.innerHeight})")
             
             if not bounding_box:
                 raise ValueError("无法获取元素边界框")

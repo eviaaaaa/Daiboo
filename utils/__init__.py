@@ -1,4 +1,4 @@
 from .my_vcr import MyVcr
-from .qwen_embeddings import QwenEmbeddings
+from .qwen_embeddings import qwen_embeddings
 
-__all__ = ['MyVcr', 'QwenEmbeddings']
+__all__ = ['MyVcr', 'qwen_embeddings']

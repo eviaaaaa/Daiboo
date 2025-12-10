@@ -14,3 +14,5 @@ class QwenEmbeddings(Embeddings):
 
     def embed_query(self, text: str) -> list[float]:
         return self.embed_documents([text])[0]
+
+qwen_embeddings = QwenEmbeddings()
