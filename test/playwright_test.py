@@ -20,16 +20,16 @@ from playwright.async_api import async_playwright
 import pytest
 
 from entity.my_state import MyState
-from loggers.screen_logger import log_agent_response, log_agent_start, log_playwright_tool_call,delay_tool_call,log_response_to_database
+from loggers.screen_logger import log_agent_response, log_agent_start, log_playwright_tool_call,log_response_to_database
 from tools import (
     FillTextTool,
     GetAllElementTool,
     VLAnalysisTool,
-    CaptureElementContextTool
+    CaptureElementContextTool,
+    delay_tool_call
 )
 from dotenv import load_dotenv
 
-from utils.my_browser import launch_or_connect_browser
 from utils.my_vcr import MyVcr
 if TYPE_CHECKING:
     from playwright.async_api import Browser as AsyncBrowser

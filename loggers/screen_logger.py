@@ -49,8 +49,20 @@ async def log_response_to_database(state:types.StateT, runtime) -> None:
 
     messages = state['messages']
     
-    # 1. 提取 User Query (第一条消息)
-    user_query = messages[0].content if messages else ""
+    # 1. 提取 User Query (寻找第一条 HumanMessage 并清洗 RAG 上下文)
+    user_query = ""
+    for msg in messages:
+        if msg.type == 'human':
+            # 尝试清洗 RAG 上下文，避免 Embedding 被污染
+            if "用户问题：" in msg.content:
+                user_query = msg.content.split("用户问题：")[-1].strip()
+            else:
+                user_query = msg.content
+            break
+            
+    if not user_query and messages:
+        # Fallback: 避免取到 SystemMessage
+        user_query = messages[1].content if len(messages) > 1 else messages[0].content
     
     # 2. 序列化整个链路 (Full Trace)
     serialized_trace = []
@@ -153,15 +165,4 @@ async def log_playwright_tool_call(
     else:
         return await handler(request)
 
-@wrap_tool_call
-async def delay_tool_call(request, handler) :
-    """
-    设置工具间的延时，ms级别,确保网页加载完成  
-    """
-    if isinstance(request.tool, BaseBrowserTool):
-        delay_ms = 500  # 设置延时为500毫秒
-        await asyncio.sleep(delay_ms / 1000)  # 将毫秒转换为秒
-        return await handler(request)
-    else:
-        return await handler(request)
         
