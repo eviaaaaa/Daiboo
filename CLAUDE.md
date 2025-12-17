@@ -58,25 +58,94 @@ python main.py
 
 The project is currently focused on developing a comprehensive **context module** to centralize and optimize contextual information management for the agent.
 
-#### Key Context Management Components
+#### Core Context Management Components
 
-**1. Dynamic ID System** (design docs: `docs/design_dynamic_id_system.md`)
-- Inject stable `data-agent-id` attributes to interactive DOM elements
-- Eliminate reliance on fragile CSS Selectors
-- Provide LLM-friendly element identifiers like `agent-btn-submit-001`
-- Components: `DynamicIdManager`, `InjectDynamicIdsTool`, `GetElementByIdTool`
+**1. Context Assembly Engine** (`context/assembly_engine.py`)
+- **Purpose**: Centralize and standardize context building logic from scattered code locations
+- **Key Features**:
+  - Refactor hardcoded context assembling from `main.py:58-83` into dedicated module
+  - Unified interface for RAG retrieval, agent history, and runtime context
+  - Automatic context formatting and optimization for LLM consumption
+  - Support for context versioning and caching
+- **Implementation**: Async functions with type hints, returning structured context dictionaries
 
-**2. Context Assembly Engine**
-- Refactor hardcoded context assembling from `main.py:58-83` into dedicated module
-- Unified interface for RAG retrieval, agent history, and runtime context
-- Automatic context formatting and optimization for LLM consumption
+**2. State Context Manager** (`context/state_manager.py`)
+- **Purpose**: Maintain and track agent state across multi-step tasks
+- **Key Features**:
+  - Track page transitions and DOM mutations
+  - Manage conversation history and task progress
+  - Store intermediate results and partial completions
+  - Support for state persistence and recovery
+- **Database Integration**: Store state snapshots in PostgreSQL with timestamps
+- **Implementation**: Class-based with async methods, integrated with `entity/my_state.py`
 
-**3. State Context Management**
-- Maintain agent state across multi-step tasks
-- Track page transitions and DOM mutations
-- Manage conversation history and task progress
+**3. Dynamic ID System** (`context/dynamic_id/`)
+- **Purpose**: Inject stable identifiers to DOM elements, eliminating CSS Selector dependency
+- **Architecture**: Based on `docs/design_dynamic_id_system.md` (detailed technical specifications)
+- **Components**:
+  - `DynamicIdManager`: Singleton ID generator and mapping cache (memory + PostgreSQL)
+  - `InjectDynamicIdsTool`: LangChain tool for automatic ID injection on page load
+  - `GetElementByIdTool`: Element locator using `data-agent-id` attributes
+  - `DOMObserverTool`: MutationObserver for SPA support (optional Phase 3)
+- **ID Format**: `agent-{element_type}-{description}-{number}` (e.g., `agent-btn-submit-001`)
+- **Performance Targets**: <200ms injection time for large pages, <10MB memory per 1000 elements
 
-See `docs/design_dynamic_id_system.md` for detailed technical specifications and implementation roadmap.
+**4. Context Versioning & Caching**
+- **Purpose**: Optimize context building performance and support A/B testing
+- **Implementation**:
+  - Cache frequently used contexts in Redis/Memory
+  - Version context schemas for backward compatibility
+  - Track context usage metrics for optimization
+
+#### Implementation Roadmap
+
+**Phase 1: Foundation (Week 1)**
+- [ ] Create `context/assembly_engine.py` with core context building logic
+- [ ] Create `context/state_manager.py` with basic state tracking
+- [ ] Initialize `context/dynamic_id/` subpackage structure
+- [ ] Add context module imports to `context/__init__.py`
+
+**Phase 2: Dynamic ID System (Week 2-3)**
+- [ ] Implement `DynamicIdManager` with singleton pattern
+- [ ] Implement `InjectDynamicIdsTool` and `GetElementByIdTool`
+- [ ] Integrate tools into `agent_factory.py`
+- [ ] Update `CaptureElementContextTool` to support agent ID selectors
+- [ ] Modify System Prompt to guide LLM on using agent IDs
+- [ ] Create database model for ID mapping persistence
+
+**Phase 3: State Management (Week 4)**
+- [ ] Enhance `State Context Manager` with full task tracking
+- [ ] Implement state persistence to PostgreSQL
+- [ ] Add state recovery mechanisms for failed tasks
+- [ ] Create state visualization/debugging tools
+
+**Phase 4: Optimization (Week 5)**
+- [ ] Implement context caching and versioning
+- [ ] Add performance monitoring for context operations
+- [ ] DOMObserverTool for SPA applications (optional)
+- [ ] Write comprehensive unit, integration, and E2E tests
+
+**Phase 5: Production Ready (Week 6)**
+- [ ] Performance tuning and bug fixes
+- [ ] Documentation and examples
+- [ ] Load testing and scalability validation
+
+#### Current Status
+
+- ✅ Context module initialized (`context/__init__.py` created)
+- ✅ Prompt module created (`prompt/system_prompt.py`, `prompt/task_prompt.py`)
+- ✅ Agent creation factory implemented (`agent_factory.py` with singleton caching)
+- 🔄 Dynamic ID system: In design phase (see `docs/design_dynamic_id_system.md`)
+- ⏳ Context Assembly Engine: Not started
+- ⏳ State Context Manager: Not started
+
+#### Expected Benefits
+
+- **Stability**: Reduce script failures due to DOM changes from 15-20% to <5%
+- **Performance**: 20-40% improvement in element location time with ID caching
+- **Maintainability**: Centralized context management reduces code duplication
+- **LLM Friendliness**: Human-readable element IDs improve agent comprehension
+- **Cross-Session Support**: Persistent ID mappings enable faster repeat executions
 
 ### Key Design Patterns
 

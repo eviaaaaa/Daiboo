@@ -126,23 +126,27 @@ class HybridSearchService:
         if not candidates:
             return []
 
-        # 构造输入对：[[query, doc_content], ...]
-        pairs = []
-        for doc in candidates:
-            # 尝试获取文本内容，优先尝试 content，其次 user_query (针对 AgentTrace)
-            # 如果模型定义了 search_content_field 属性指向字段名，也可以用 getattr(doc, doc.search_content_field_name)
-            content = getattr(doc, 'content', getattr(doc, 'user_query', ''))
-            pairs.append([query, content])
+        try:
+            # 构造输入对：[[query, doc_content], ...]
+            pairs = []
+            for doc in candidates:
+                # 尝试获取文本内容，优先尝试 content，其次 user_query (针对 AgentTrace)
+                # 如果模型定义了 search_content_field 属性指向字段名，也可以用 getattr(doc, doc.search_content_field_name)
+                content = getattr(doc, 'content', getattr(doc, 'user_query', ''))
+                pairs.append([query, content])
 
-        # 计算分数
-        # CrossEncoder.predict 返回 ndarray 或 list
-        scores = self.reranker.predict(pairs)
-        
-        # 结合分数和文档
-        scored_docs = list(zip(candidates, scores))
-        
-        # 按分数降序排列
-        scored_docs.sort(key=lambda x: x[1], reverse=True)
-        
-        # 返回 Top K 文档
-        return [doc for doc, score in scored_docs[:top_k]]
+            # 计算分数
+            # CrossEncoder.predict 返回 ndarray 或 list
+            scores = self.reranker.predict(pairs)
+            
+            # 结合分数和文档
+            scored_docs = list(zip(candidates, scores))
+            
+            # 按分数降序排列
+            scored_docs.sort(key=lambda x: x[1], reverse=True)
+            
+            # 返回 Top K 文档
+            return [doc for doc, score in scored_docs[:top_k]]
+        except Exception as e:
+            print(f"⚠️ Rerank failed: {e}. Fallback to original order.")
+            return candidates[:top_k]

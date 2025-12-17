@@ -9,7 +9,8 @@ from langchain_community.tools.playwright import (
     NavigateBackTool,
     NavigateTool
 )
-from langchain.agents.middleware import SummarizationMiddleware
+from langchain.agents.middleware import HumanInTheLoopMiddleware
+from context.context_manager import ContextManagerMiddleware
 from langgraph.checkpoint.memory import InMemorySaver
 from entity.my_state import MyState
 from loggers.screen_logger import (
@@ -24,8 +25,12 @@ from tools import (
     GetAllElementTool,
     VLAnalysisTool,
     CaptureElementContextTool,
-    delay_tool_call
+    delay_tool_call,
+    read_archived_round,
+    search_memory,
+    search_knowledge_base
 )
+from tools.terminal_tools import terminal_read, terminal_write
 
 # 单例缓存
 _agent_cache = {}
@@ -59,6 +64,11 @@ def create_browser_agent(browser, model_name="qwen3-max", enable_thinking=True):
         NavigateBackTool(async_browser=browser),
         GetElementsTool(async_browser=browser),
         ExtractHyperlinksTool(async_browser=browser),
+        read_archived_round,
+        search_memory,
+        terminal_read,
+        terminal_write,
+        search_knowledge_base,
     ]
 
     # 初始化模型
@@ -67,18 +77,32 @@ def create_browser_agent(browser, model_name="qwen3-max", enable_thinking=True):
         enable_thinking=enable_thinking,
     )
 
+    # 初始化 ContextManagerMiddleware
+    context_middleware = ContextManagerMiddleware(model=model,max_context_tokens=1280000,single_msg_limit = 128000)
+
+    # 初始化 HITL 中间件
+    hitl_middleware = HumanInTheLoopMiddleware(
+        interrupt_on={
+            "terminal_write": True,  # 拦截写操作，允许 Approve/Edit/Reject
+            "terminal_read": True    # 拦截读操作，允许 Approve/Edit/Reject
+        }
+    )
+
     # 创建 Agent（最耗时的操作）
     browser_agent = agents.create_agent(
         system_prompt=system_prompt.system_prompt,
         state_schema=MyState,
+        checkpointer= InMemorySaver(),
         model=model,
         tools=tools,
         middleware=[
+            context_middleware,
+            hitl_middleware,
             log_agent_start,
-            delay_tool_call,
             log_playwright_tool_call,
             log_agent_response,
             log_response_to_database,
+            delay_tool_call,
         ],
     )
 

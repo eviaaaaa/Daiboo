@@ -18,7 +18,6 @@ from langchain_community.tools.playwright import (
 )
 from playwright.async_api import async_playwright
 from sqlalchemy.orm import Session
-
 from database import engine
 from entity.agent_trace import AgentTrace
 from entity.my_state import MyState
@@ -39,6 +38,7 @@ from tools import (
 )
 from dotenv import load_dotenv
 from utils.my_browser import launch_or_connect_browser
+from utils.my_vcr import MyVcr
 if TYPE_CHECKING:
     from playwright.async_api import Browser as AsyncBrowser
     from playwright.sync_api import Browser as SyncBrowser
@@ -48,6 +48,7 @@ QFNU_PASSWORD=os.environ["QFNU_PASSWORD"]
 os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
     
 
+@MyVcr.use_cassette("test_rag.yaml")
 async def test_rag():
     """
     主函数

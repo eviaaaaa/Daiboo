@@ -5,6 +5,7 @@ from sqlalchemy import (
     create_engine,
     URL, # 引入 URL 对象，更安全地构建连接字符串
 )
+from sympy import false
 
 from utils import qwen_embeddings
 # --- 1. 加载配置 ---
@@ -33,10 +34,10 @@ db_url = URL.create(
     database=DB_CONFIG["dbname"],
 )
 # 创建 Engine。这个 engine 对象应该在你的应用中是单例的。
-# echo=True 会打印出所有执行的 SQL 语句，非常适合调试。
-engine = create_engine(db_url, echo=True)
+engine = create_engine(db_url, echo=false)
 # 遍历实体类，创建所有表
 from entity.base import Base  # 确保导入 Base，以便调用 Base.metadata
+from entity.conversation_memory import ConversationRound
 Base.metadata.create_all(engine)
 
 print("\nSQLAlchemy Engine 创建成功！")

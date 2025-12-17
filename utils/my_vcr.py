@@ -7,4 +7,5 @@ MyVcr = vcr.VCR(
     record_mode='once',
     filter_headers=['authorization'],  # 过滤请求头中的authorization字段
     filter_query_parameters=['api_key'],  # 过滤请求参数中的api_key字段
+    ignore_localhost=True
 )
