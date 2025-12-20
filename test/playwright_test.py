@@ -61,7 +61,6 @@ async def test_playwright():
 
             model = tongyi.ChatTongyi(
                 model_name="qwen3-max",
-                enable_thinking=True,
             )
             ###
             # 创建 agent

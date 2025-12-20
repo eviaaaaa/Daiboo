@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NexusSurf Controller</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        /* Custom scrollbar for chat */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #888; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555; 
+        }
+    </style>
+</head>
+<body class="bg-gray-100 h-screen flex overflow-hidden font-sans">
+    <div id="app" class="flex w-full h-full">
+        <!-- Sidebar -->
+        <div class="w-64 bg-gray-900 text-white flex flex-col shadow-lg">
+            <div class="p-6 text-2xl font-bold border-b border-gray-700 flex items-center">
+                <span>NexusSurf</span>
+            </div>
+            <nav class="flex-1 p-4 space-y-2">
+                <button @click="currentTab = 'chat'" :class="{'bg-blue-600': currentTab === 'chat', 'hover:bg-gray-800': currentTab !== 'chat'}" class="w-full text-left px-4 py-3 rounded transition duration-200 flex items-center">
+                    <span class="mr-3">💬</span> 对话 (Chat)
+                </button>
+                <button @click="currentTab = 'upload'" :class="{'bg-blue-600': currentTab === 'upload', 'hover:bg-gray-800': currentTab !== 'upload'}" class="w-full text-left px-4 py-3 rounded transition duration-200 flex items-center">
+                    <span class="mr-3">📂</span> 文档导入 (RAG)
+                </button>
+                <button @click="fetchTools(); currentTab = 'tools'" :class="{'bg-blue-600': currentTab === 'tools', 'hover:bg-gray-800': currentTab !== 'tools'}" class="w-full text-left px-4 py-3 rounded transition duration-200 flex items-center">
+                    <span class="mr-3">🛠️</span> 工具列表 (Tools)
+                </button>
+            </nav>
+            <div class="p-4 text-xs text-gray-500 border-t border-gray-700">
+                Session: {{ threadId }}
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="flex-1 flex flex-col overflow-hidden bg-gray-50">
+            
+            <!-- Chat View -->
+            <div v-if="currentTab === 'chat'" class="flex-1 flex flex-col h-full relative">
+                <div class="flex-1 overflow-y-auto p-6 space-y-6" ref="chatContainer">
+                    <div v-if="chatHistory.length === 0" class="text-center text-gray-400 mt-20">
+                        <div class="text-6xl mb-4">👋</div>
+                        <p class="text-xl">开始一个新的对话吧！</p>
+                    </div>
+                    <div v-for="(msg, index) in chatHistory" :key="index" :class="{'flex justify-end': msg.role === 'user', 'flex justify-start': msg.role === 'agent'}">
+                        <div :class="{'bg-blue-600 text-white rounded-br-none': msg.role === 'user', 'bg-white text-gray-800 border border-gray-200 rounded-bl-none': msg.role === 'agent'}" class="max-w-4xl p-4 rounded-2xl shadow-sm">
+                            <div v-if="msg.role === 'agent'" class="prose prose-sm max-w-none" v-html="renderMarkdown(msg.content)"></div>
+                            <div v-else class="whitespace-pre-wrap">{{ msg.content }}</div>
+                        </div>
+                    </div>
+                    <div v-if="isThinking" class="flex justify-start">
+                        <div class="bg-white text-gray-500 p-4 rounded-2xl rounded-bl-none shadow-sm border border-gray-200 flex items-center">
+                            <div class="animate-pulse flex space-x-2">
+                                <div class="h-2 w-2 bg-gray-400 rounded-full"></div>
+                                <div class="h-2 w-2 bg-gray-400 rounded-full"></div>
+                                <div class="h-2 w-2 bg-gray-400 rounded-full"></div>
+                            </div>
+                            <span class="ml-2 text-sm">Agent is thinking...</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="p-4 bg-white border-t border-gray-200 shadow-lg">
+                    <div class="max-w-5xl mx-auto flex space-x-4">
+                        <input v-model="userInput" @keyup.enter="sendMessage" type="text" placeholder="输入指令..." class="flex-1 border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm transition">
+                        <button @click="sendMessage" :disabled="isThinking || !userInput.trim()" class="bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition font-medium">
+                            发送
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Upload View -->
+            <div v-if="currentTab === 'upload'" class="p-10 overflow-y-auto">
+                <h2 class="text-3xl font-bold mb-8 text-gray-800">导入文档 (RAG)</h2>
+                <div class="bg-white p-8 rounded-xl shadow-md max-w-2xl border border-gray-100">
+                    <div class="mb-6">
+                        <label class="block text-gray-700 text-sm font-bold mb-3">选择文件 (PDF, TXT, MD, DOCX)</label>
+                        <div class="flex items-center justify-center w-full">
+                            <label for="dropzone-file" class="flex flex-col items-center justify-center w-full h-64 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition">
+                                <div class="flex flex-col items-center justify-center pt-5 pb-6">
+                                    <svg class="w-10 h-10 mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+                                    <p class="mb-2 text-sm text-gray-500"><span class="font-semibold">点击上传</span> 或拖拽文件到这里</p>
+                                    <p class="text-xs text-gray-500">支持 PDF, DOCX, MD, TXT</p>
+                                </div>
+                                <input id="dropzone-file" type="file" ref="fileInput" class="hidden" @change="handleFileSelect" />
+                            </label>
+                        </div>
+                        <div v-if="selectedFileName" class="mt-2 text-sm text-gray-600">
+                            已选择: <span class="font-semibold">{{ selectedFileName }}</span>
+                        </div>
+                    </div>
+                    <button @click="uploadFile" :disabled="isUploading || !selectedFileName" class="w-full bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 disabled:opacity-50 transition font-medium shadow-sm">
+                        {{ isUploading ? '上传中...' : '开始上传并索引' }}
+                    </button>
+                    <div v-if="uploadStatus" class="mt-6 p-4 rounded-lg border" :class="{'bg-green-50 text-green-800 border-green-200': uploadStatus.type === 'success', 'bg-red-50 text-red-800 border-red-200': uploadStatus.type === 'error'}">
+                        <div class="flex items-center">
+                            <span class="text-xl mr-2">{{ uploadStatus.type === 'success' ? '✅' : '❌' }}</span>
+                            {{ uploadStatus.message }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tools View -->
+            <div v-if="currentTab === 'tools'" class="p-10 overflow-y-auto h-full">
+                <h2 class="text-3xl font-bold mb-8 text-gray-800">可用工具 (Tools)</h2>
+                <div v-if="tools.length === 0" class="text-gray-500">加载中...</div>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div v-for="tool in tools" :key="tool.name" class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition duration-200 flex flex-col">
+                        <div class="flex items-center mb-3">
+                            <div class="bg-blue-100 p-2 rounded-lg mr-3">
+                                <span class="text-xl">🔧</span>
+                            </div>
+                            <h3 class="font-bold text-lg text-gray-800">{{ tool.name }}</h3>
+                        </div>
+                        <p class="text-gray-600 text-sm flex-1 leading-relaxed">{{ tool.description }}</p>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, onMounted } = Vue;
+
+        createApp({
+            setup() {
+                const currentTab = ref('chat');
+                const userInput = ref('');
+                const chatHistory = ref([]);
+                const isThinking = ref(false);
+                const tools = ref([]);
+                const fileInput = ref(null);
+                const isUploading = ref(false);
+                const uploadStatus = ref(null);
+                const chatContainer = ref(null);
+                const threadId = ref("session_" + Date.now());
+                const selectedFileName = ref('');
+
+                const renderMarkdown = (text) => {
+                    return marked.parse(text || '');
+                };
+
+                const handleFileSelect = (event) => {
+                    const file = event.target.files[0];
+                    if (file) {
+                        selectedFileName.value = file.name;
+                    }
+                };
+
+                const sendMessage = async () => {
+                    if (!userInput.value.trim() || isThinking.value) return;
+                    
+                    const message = userInput.value;
+                    chatHistory.value.push({ role: 'user', content: message });
+                    userInput.value = '';
+                    isThinking.value = true;
+
+                    try {
+                        const response = await fetch('http://localhost:8801/chat', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ message: message, thread_id: threadId.value })
+                        });
+
+                        const reader = response.body.getReader();
+                        const decoder = new TextDecoder();
+                        let agentResponse = "";
+                        
+                        const agentMsgIndex = chatHistory.value.push({ role: 'agent', content: '' }) - 1;
+
+                        while (true) {
+                            const { done, value } = await reader.read();
+                            if (done) break;
+                            
+                            const chunk = decoder.decode(value, { stream: true });
+                            const lines = chunk.split('\n');
+                            
+                            for (const line of lines) {
+                                if (!line.trim()) continue;
+                                try {
+                                    const data = JSON.parse(line);
+                                    if (data.type === 'message') {
+                                        // Actual message content
+                                        agentResponse += data.content + "\n\n";
+                                        chatHistory.value[agentMsgIndex].content = agentResponse;
+                                    } else if (data.type === 'tool') {
+                                        // Tool execution
+                                        agentResponse += "<div class='my-4 p-2 bg-blue-50 rounded border border-blue-100'><details><summary class='cursor-pointer text-blue-600 text-xs font-semibold'>🛠️ Tool Execution (Click to expand)</summary>\n\n```python\n" + data.content + "\n```\n\n</details></div>\n\n";
+                                        chatHistory.value[agentMsgIndex].content = agentResponse;
+                                    } else if (data.type === 'log') {
+                                        // Other logs
+                                        agentResponse += "<div class='my-2'><details><summary class='cursor-pointer text-gray-400 text-xs'>Thinking Process (Click to expand)</summary>\n\n```python\n" + data.content + "\n```\n\n</details></div>\n\n";
+                                        chatHistory.value[agentMsgIndex].content = agentResponse;
+                                    } else if (data.type === 'update') {
+                                        // Legacy/Fallback
+                                        agentResponse += "```json\n" + data.content + "\n```\n\n";
+                                        chatHistory.value[agentMsgIndex].content = agentResponse;
+                                    } else if (data.type === 'interrupt') {
+                                        agentResponse += "\n\n> **⚠️ INTERRUPTED**: " + data.content;
+                                        chatHistory.value[agentMsgIndex].content = agentResponse;
+                                    } else if (data.type === 'error') {
+                                        agentResponse += "\n\n> **❌ ERROR**: " + data.content;
+                                        chatHistory.value[agentMsgIndex].content = agentResponse;
+                                    }
+                                } catch (e) {
+                                    console.error("Error parsing JSON chunk", e);
+                                }
+                            }
+                            
+                            // Auto scroll
+                            if (chatContainer.value) {
+                                setTimeout(() => {
+                                    chatContainer.value.scrollTop = chatContainer.value.scrollHeight;
+                                }, 10);
+                            }
+                        }
+
+                    } catch (e) {
+                        chatHistory.value.push({ role: 'agent', content: "**Network Error**: " + e.message });
+                    } finally {
+                        isThinking.value = false;
+                    }
+                };
+
+                const fetchTools = async () => {
+                    try {
+                        const res = await fetch('http://localhost:8801/tools');
+                        tools.value = await res.json();
+                    } catch (e) {
+                        console.error("Failed to fetch tools", e);
+                    }
+                };
+
+                const uploadFile = async () => {
+                    const file = fileInput.value.files[0];
+                    if (!file) return;
+
+                    isUploading.value = true;
+                    uploadStatus.value = null;
+                    
+                    const formData = new FormData();
+                    formData.append('file', file);
+
+                    try {
+                        const res = await fetch('http://localhost:8801/upload', {
+                            method: 'POST',
+                            body: formData
+                        });
+                        
+                        if (res.ok) {
+                            const data = await res.json();
+                            uploadStatus.value = { type: 'success', message: '上传成功: ' + data.filename };
+                            selectedFileName.value = '';
+                            fileInput.value.value = ''; // Reset input
+                        } else {
+                            const err = await res.text();
+                            try {
+                                const errJson = JSON.parse(err);
+                                uploadStatus.value = { type: 'error', message: '上传失败: ' + (errJson.detail || err) };
+                            } catch {
+                                uploadStatus.value = { type: 'error', message: '上传失败: ' + err };
+                            }
+                        }
+                    } catch (e) {
+                        uploadStatus.value = { type: 'error', message: '网络错误: ' + e.message };
+                    } finally {
+                        isUploading.value = false;
+                    }
+                };
+
+                return {
+                    currentTab,
+                    userInput,
+                    chatHistory,
+                    isThinking,
+                    tools,
+                    fileInput,
+                    isUploading,
+                    uploadStatus,
+                    sendMessage,
+                    fetchTools,
+                    uploadFile,
+                    renderMarkdown,
+                    chatContainer,
+                    threadId,
+                    handleFileSelect,
+                    selectedFileName
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>

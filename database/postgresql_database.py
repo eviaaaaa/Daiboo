@@ -37,7 +37,7 @@ db_url = URL.create(
 engine = create_engine(db_url, echo=false)
 # 遍历实体类，创建所有表
 from entity.base import Base  # 确保导入 Base，以便调用 Base.metadata
-from entity.conversation_memory import ConversationRound
-Base.metadata.create_all(engine)
+# 注意：实际的表创建应该在需要的地方调用，而不是在模块导入时
+# Base.metadata.create_all(engine)
 
 print("\nSQLAlchemy Engine 创建成功！")

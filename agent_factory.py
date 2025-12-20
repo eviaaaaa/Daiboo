@@ -26,14 +26,31 @@ from tools import (
     VLAnalysisTool,
     CaptureElementContextTool,
     delay_tool_call,
-    read_archived_round,
-    search_memory,
     search_knowledge_base
 )
 from tools.terminal_tools import terminal_read, terminal_write
 
 # 单例缓存
 _agent_cache = {}
+
+def get_agent_tools(browser):
+    """获取工具列表"""
+    return [
+        FillTextTool(async_browser=browser),
+        ClickTool(async_browser=browser, playwright_timeout=10000, visible_only=False),
+        CurrentWebPageTool(async_browser=browser),
+        ExtractTextTool(async_browser=browser),
+        NavigateTool(async_browser=browser),
+        GetAllElementTool(async_browser=browser),
+        VLAnalysisTool(),
+        CaptureElementContextTool(async_browser=browser),
+        NavigateBackTool(async_browser=browser),
+        GetElementsTool(async_browser=browser),
+        ExtractHyperlinksTool(async_browser=browser),
+        terminal_read,
+        terminal_write,
+        search_knowledge_base,
+    ]
 
 def create_browser_agent(browser, model_name="qwen3-max", enable_thinking=True):
     """
@@ -52,33 +69,17 @@ def create_browser_agent(browser, model_name="qwen3-max", enable_thinking=True):
         return _agent_cache[cache_key]
 
     # 初始化工具集
-    tools = [
-        FillTextTool(async_browser=browser),
-        ClickTool(async_browser=browser, playwright_timeout=10000, visible_only=False),
-        CurrentWebPageTool(async_browser=browser),
-        ExtractTextTool(async_browser=browser),
-        NavigateTool(async_browser=browser),
-        GetAllElementTool(async_browser=browser),
-        VLAnalysisTool(),
-        CaptureElementContextTool(async_browser=browser),
-        NavigateBackTool(async_browser=browser),
-        GetElementsTool(async_browser=browser),
-        ExtractHyperlinksTool(async_browser=browser),
-        read_archived_round,
-        search_memory,
-        terminal_read,
-        terminal_write,
-        search_knowledge_base,
-    ]
+    tools = get_agent_tools(browser)
+
 
     # 初始化模型
     model = tongyi.ChatTongyi(
         model_name=model_name,
-        enable_thinking=enable_thinking,
+        enable_thinking=enable_thinking
     )
 
     # 初始化 ContextManagerMiddleware
-    context_middleware = ContextManagerMiddleware(model=model,max_context_tokens=1280000,single_msg_limit = 128000)
+    context_middleware = ContextManagerMiddleware(model=model)
 
     # 初始化 HITL 中间件
     hitl_middleware = HumanInTheLoopMiddleware(
