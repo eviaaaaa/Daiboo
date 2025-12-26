@@ -15,6 +15,34 @@ class GetAllElementTool(BaseBrowserTool):
     name: str = "get_all_element_tool"
     description: str = "Get all elements' content from the current webpage"
 
+    def _clean_content(self, content: str) -> str:
+        try:
+            from bs4 import BeautifulSoup, Comment
+        except ImportError:
+            return content
+            
+        soup = BeautifulSoup(content, "html.parser")
+        
+        # Remove unwanted tags
+        for element in soup(["script", "style", "meta", "link", "noscript", "svg", "iframe", "head"]):
+            element.decompose()
+            
+        # Remove comments
+        for comment in soup.find_all(string=lambda text: isinstance(text, Comment)):
+            comment.extract()
+            
+        # Clean attributes
+        for tag in soup.find_all(True):
+            new_attrs = {}
+            for k, v in tag.attrs.items():
+                if k in ['id', 'class', 'name', 'type', 'value', 'placeholder', 'aria-label', 'role', 'title', 'alt', 'href']:
+                    new_attrs[k] = v
+                elif k == 'src' and not str(v).startswith('data:'):
+                    new_attrs[k] = v
+            tag.attrs = new_attrs
+            
+        return str(soup)
+
     def _run(
         self,
         runtime:ToolRuntime,
@@ -26,7 +54,8 @@ class GetAllElementTool(BaseBrowserTool):
         page:Page = utils.aget_current_page(self.async_browser)
         from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
         try:
-            return page.content()
+            content = page.content()
+            return self._clean_content(content)
         except PlaywrightTimeoutError:
             return "Unable to get page content"
         
@@ -41,7 +70,8 @@ class GetAllElementTool(BaseBrowserTool):
         page:Page = await utils.aget_current_page(self.async_browser)
         from playwright.async_api import TimeoutError as PlaywrightTimeoutError
         try:
-            return await page.content()
+            content = await page.content()
+            return self._clean_content(content)
         except PlaywrightTimeoutError as err:
             print(f"{err}")
             return "Unable to get page content"

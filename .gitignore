@@ -15,3 +15,6 @@ tools/__pycache__/get_page_img.cpython-311.pyc
 /storage/*
 /test/vcr_cassettes/*
 .temp_uploads/*
+test.ipynb
+.claude/*
+.claude/settings.json
