@@ -23,15 +23,15 @@ class GetAllElementTool(BaseBrowserTool):
             
         soup = BeautifulSoup(content, "html.parser")
         
-        # Remove unwanted tags
+        # 移除不想要的标签
         for element in soup(["script", "style", "meta", "link", "noscript", "svg", "iframe", "head"]):
             element.decompose()
             
-        # Remove comments
+        # 移除内容
         for comment in soup.find_all(string=lambda text: isinstance(text, Comment)):
             comment.extract()
             
-        # Clean attributes
+        # 白名单
         for tag in soup.find_all(True):
             new_attrs = {}
             for k, v in tag.attrs.items():

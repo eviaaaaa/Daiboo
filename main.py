@@ -13,12 +13,22 @@ if TYPE_CHECKING:
     from playwright.async_api import Browser as AsyncBrowser
     from playwright.sync_api import Browser as SyncBrowser
 
+
+async def ainput(prompt: str = "") -> str:
+    """
+    异步版本的 input()，允许事件循环在等待输入时继续调度其他任务
+    """
+    return await asyncio.to_thread(input, prompt)
+
  
 
 async def main():
     """
     主函数 - 交互式版本，持续接收用户输入直到输入 'exit' 或 'quit'
+    支持动态 session 管理：输入 'new' 或 'reset' 创建新对话
     """
+    import uuid
+    
     async with async_playwright() as p:
         async with await launch_or_connect_browser(p) as browser:
             # 使用工厂函数创建 agent
@@ -26,23 +36,38 @@ async def main():
 
             print("=" * 60)
             print("NexusSurf 浏览器自动化助手")
-            print("输入 'exit' 或 'quit' 退出程序")
+            print("命令：'exit'/'quit' 退出 | 'new'/'reset' 新建对话")
             print("=" * 60)
+            
+            # 动态 session 管理
+            current_session_id = None
 
             while True:
                 # 从用户输入读取查询
-                query = input("\n请输入您的查询：").strip()
+                query = (await ainput("\n请输入您的查询：")).strip()
 
                 # 检查是否退出
                 if query.lower() in ['exit', 'quit']:
                     print("退出程序")
                     break
+                
+                # 检查是否创建新对话
+                if query.lower() in ['new', 'reset', '新对话', '重置']:
+                    current_session_id = uuid.uuid4().hex
+                    print(f"🆕 新对话已创建：{current_session_id[:8]}...")
+                    continue
 
                 if not query:
                     print("查询不能为空，请重新输入")
                     continue
+                
+                # 如果还没有 session，自动创建
+                if current_session_id is None:
+                    current_session_id = uuid.uuid4().hex
+                    print(f"🆕 自动创建对话：{current_session_id[:8]}...")
 
-                print("\n用户查询：", query)
+                print(f"\n用户查询：{query}")
+                print(f"对话 ID：{current_session_id[:8]}...")
 
                 inputs = {
                     "messages": [
@@ -50,9 +75,8 @@ async def main():
                     ]
                 }
                 print("\n🚀 开始流式执行任务...")
-                # 增加递归限制以支持更长的交互流程
-                # 修正 config 结构，将 thread_id 放入 configurable
-                config = {"configurable": {"thread_id": "session_1"}, "recursion_limit": 80}
+                # 使用动态 session_id
+                config = {"configurable": {"thread_id": current_session_id}, "recursion_limit": 80}
                 
                 # 循环处理流式输出和中断
                 while True:
@@ -83,12 +107,12 @@ async def main():
                             # 注意：LangGraph 的 API 可能会变动，这里基于通用逻辑
                             
                             print("Agent 请求执行敏感操作。")
-                            decision = input(">>> 请审批 (approve/reject): ").strip().lower()
+                            decision = (await ainput(">>> 请审批 (approve/reject): ")).strip().lower()
                             
                             if decision == "approve":
                                 payload = {"decisions": [{"type": "approve"}]}
                             elif decision == "reject":
-                                reason = input("请输入拒绝理由: ")
+                                reason = await ainput("请输入拒绝理由: ")
                                 payload = {"decisions": [{"type": "reject", "message": reason}]}
                             else:
                                 print("无效输入，默认拒绝。")

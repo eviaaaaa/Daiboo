@@ -27,13 +27,13 @@ from loggers.screen_logger import log_response_to_database, log_agent_start
 from tools import FillTextTool, GetAllElementTool
 from dotenv import load_dotenv
 from utils.my_vcr import MyVcr
-
+from langsmith import traceable
 if TYPE_CHECKING:
     from playwright.async_api import Browser as AsyncBrowser
-    
 load_dotenv()
 
 
+@traceable
 @MyVcr.use_cassette('test/vcr_cassettes/test_middleware_logging.yaml')    
 async def test_middleware_logging():
     """
@@ -44,6 +44,7 @@ async def test_middleware_logging():
     3. 任务执行后可以从数据库查询到完整的执行记录
     """
     print("=" * 80)
+    print(f"LANGCHAIN_CALLBACKS_BACKGROUND:={os.getenv('LANGCHAIN_CALLBACKS_BACKGROUND')}")
     print("测试日志中间件：log_agent_start + log_response_to_database")
     print("=" * 80)
     
@@ -94,10 +95,10 @@ async def test_middleware_logging():
             }
             
             print("\n🚀 开始执行任务...")
-            print(f"📝 任务内容: 访问 example.com 并获取页面标题")
+            print(f"📝 任务内容: 访问https://www.baidu.com/ 并获取页面标题")
             
             # 执行任务
-            config = {"recursion_limit": 20}
+            config = {"configurable": {"thread_id": "session_1"}, "recursion_limit": 80}
             step_count = 0
             
             async for chunk in browser_agent.astream(inputs, config=config, stream_mode="updates"):
@@ -132,7 +133,6 @@ async def test_middleware_logging():
             
             print(f"\n✅ 中间件工作正常！")
             print(f"📝 最新记录信息:")
-            print(f"   - Session ID: {latest_trace.session_id}")
             print(f"   - User Query: {latest_trace.user_query[:100]}...")
             print(f"   - Created At: {latest_trace.created_at}")
             print(f"   - Full Trace Length: {len(str(latest_trace.full_trace))} 字符")

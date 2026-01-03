@@ -140,32 +140,38 @@ class ContextManagerMiddleware(AgentMiddleware):
         new_messages = []
         for msg in messages:
             if isinstance(msg, (HumanMessage, ToolMessage)):
-                # 检查 token 数量或长度
+                # 检查内容长度
                 content_str = str(msg.content)
-                if len(content_str) > self.single_msg_limit * 4: # 先进行粗略的字符计数检查
-                     if self.token_counter([msg]) > self.single_msg_limit:
-                        file_path = self._save_to_file(content_str, "msg_content")
-                        preview = self._create_preview(content_str, 500)
+                content_len = len(content_str)
+                
+                # 使用字符长度估算（1 token ≈ 4 chars for Chinese, ≈ 1 char for English）
+                # 取平均值：1 token ≈ 2 chars
+                estimated_tokens = content_len // 2
+                
+                # 如果估算超过限制，直接卸载，避免精确计数（太耗时）
+                if estimated_tokens > self.single_msg_limit:
+                    file_path = self._save_to_file(content_str, "msg_content")
+                    preview = self._create_preview(content_str, 500)
 
-                        new_content = (
-                            f"[系统提示: 此消息内容过长 (共 {len(content_str)} 字符)。\n"
-                            f"完整内容已保存至: {file_path}。\n"
-                            f"以下是内容预览:\n"
-                            f"--- BEGIN PREVIEW ---\n{preview}\n--- END PREVIEW ---\n"
-                            f"如果预览信息不足，请使用 terminal_read 工具读取完整文件。]"
-                        )
+                    new_content = (
+                        f"[系统提示: 此消息内容过长 (共 {content_len} 字符，估计 {estimated_tokens} tokens)。\n"
+                        f"完整内容已保存至: {file_path}。\n"
+                        f"以下是内容预览:\n"
+                        f"--- BEGIN PREVIEW ---\n{preview}\n--- END PREVIEW ---\n"
+                        f"如果预览信息不足，请使用 terminal_read 工具读取完整文件。]"
+                    )
+                    
+                    # 创建带有新内容的副本
+                    if isinstance(msg, HumanMessage):
+                        msg_copy = HumanMessage(content=new_content, id=msg.id, additional_kwargs=msg.additional_kwargs)
+                    elif isinstance(msg, ToolMessage):
+                        msg_copy = ToolMessage(content=new_content, tool_call_id=msg.tool_call_id, id=msg.id, additional_kwargs=msg.additional_kwargs)
+                    else:
+                        msg_copy = msg
                         
-                        # 创建带有新内容的副本
-                        # 注意: msg.copy() 可能因版本不同而不按预期工作，使用构造函数
-                        if isinstance(msg, HumanMessage):
-                            msg_copy = HumanMessage(content=new_content, id=msg.id, additional_kwargs=msg.additional_kwargs)
-                        elif isinstance(msg, ToolMessage):
-                            msg_copy = ToolMessage(content=new_content, tool_call_id=msg.tool_call_id, id=msg.id, additional_kwargs=msg.additional_kwargs)
-                        else:
-                            msg_copy = msg # 鉴于 if 检查，这种情况不应发生
-                            
-                        new_messages.append(msg_copy)
-                        continue
+                    new_messages.append(msg_copy)
+                    print(f"⚠️ 消息过长已卸载: {content_len} 字符 -> {file_path}")
+                    continue
             
             new_messages.append(msg)
         return new_messages

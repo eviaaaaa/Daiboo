@@ -19,6 +19,7 @@ from loggers.screen_logger import (
     log_playwright_tool_call,
     log_response_to_database
 )
+from loggers.experience_middleware import log_experience
 from prompt import system_prompt
 from tools import (
     FillTextTool,
@@ -75,7 +76,7 @@ def create_browser_agent(browser, model_name="qwen3-max", enable_thinking=True):
     # 初始化模型
     model = tongyi.ChatTongyi(
         model_name=model_name,
-        enable_thinking=enable_thinking
+        enable_thinking=enable_thinking,
     )
 
     # 初始化 ContextManagerMiddleware
@@ -86,6 +87,7 @@ def create_browser_agent(browser, model_name="qwen3-max", enable_thinking=True):
         interrupt_on={
             "terminal_write": True,  # 拦截写操作，允许 Approve/Edit/Reject
             "terminal_read": True    # 拦截读操作，允许 Approve/Edit/Reject
+            
         }
     )
 
@@ -102,7 +104,8 @@ def create_browser_agent(browser, model_name="qwen3-max", enable_thinking=True):
             log_agent_start,
             log_playwright_tool_call,
             log_agent_response,
-            log_response_to_database,
+            log_response_to_database,  # 先记录链路
+            log_experience,            # 再异步总结经验
             delay_tool_call,
         ],
     )

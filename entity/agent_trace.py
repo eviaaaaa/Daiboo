@@ -107,6 +107,32 @@ class AgentTrace(Base, SearchableMixin):
         server_default="{}"
     )
 
+    # --- 会话管理 (用于多轮对话去重) ---
+    
+    # 会话 ID (用于追踪同一对话窗口)
+    session_id: Mapped[Optional[str]] = mapped_column(
+        String(100),
+        nullable=True,
+        index=True,
+        comment="Session identifier for grouping conversation rounds"
+    )
+    
+    # 对话轮次 (同一 session 内递增)
+    turn_number: Mapped[int] = mapped_column(
+        Integer,
+        default=1,
+        server_default='1',
+        comment="Turn number within the session"
+    )
+    
+    # 已记录的消息数 (用于计算增量)
+    last_message_count: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        server_default='0',
+        comment="Number of messages recorded in this trace"
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default_factory=datetime.utcnow,

@@ -2,26 +2,27 @@ import asyncio
 import time
 import os
 from typing import Any
-import jieba
 from playwright.async_api import Page
 from langchain.agents.middleware import  after_agent,wrap_tool_call,types,before_agent
 from langchain_community.tools.playwright.base import BaseBrowserTool
 from langchain_community.tools.playwright import utils
 from sqlalchemy.orm import Session
-from sqlalchemy import func
 
 from entity import MyState
 from entity.agent_trace import AgentTrace, ResponseStatus
 from database import engine
-from utils import  qwen_embeddings
-from rag.question_rag_pgvector import save_agent_trace_to_pgvector
 
 
 
 # 2. 中间件
 @before_agent
 async def log_agent_start(state: MyState, runtime) -> dict[str, Any]:
-    return {"start_time": time.time()}
+    # 初始化或递增轮次号
+    current_turn = state.get('turn_number', 0) + 1
+    return {
+        "start_time": time.time(),
+        "turn_number": current_turn
+    }
 
 
 @after_agent(can_jump_to="end")
@@ -42,50 +43,52 @@ async def log_agent_response(state:types.StateT, runtime) -> None:
 @after_agent(can_jump_to="end")
 async def log_response_to_database(state:types.StateT, runtime) -> None:
     """
-    当代理成功完成任务后，进行总结记录所有响应到database，便于之后进行查询。
+    链路记录中间件：每轮对话追加一条新记录到 AgentTrace 表（审计日志）
+    采用追加更新机制，同一 session 可以有多条记录
     """
     if not state or 'messages' not in state:
         return
 
     messages = state['messages']
     
-    # 1. 提取 User Query (寻找第一条 HumanMessage 并清洗 RAG 上下文)
+    # 1. 获取 session_id
+    session_id = state.get('configurable', {}).get('thread_id')
+    if not session_id:
+        session_id = messages[0].id if messages else None
+    
+    if not session_id:
+        print("⚠️ 无法获取 session_id，跳过链路记录")
+        return
+    
+    # 2. 提取 User Query（最后一条 HumanMessage）
     user_query = ""
-    for msg in messages:
+    for msg in reversed(messages):
         if msg.type == 'human':
-            # 尝试清洗 RAG 上下文，避免 Embedding 被污染
-            if "用户问题：" in msg.content:
-                user_query = msg.content.split("用户问题：")[-1].strip()
-            else:
-                user_query = msg.content
+            user_query = msg.content
             break
             
     if not user_query and messages:
-        # Fallback: 避免取到 SystemMessage
         user_query = messages[1].content if len(messages) > 1 else messages[0].content
     
-    # 2. 序列化整个链路 (Full Trace)
+    # 3. 序列化整个链路
     serialized_trace = []
     tool_names_set = set()
-    
-    
     total_input_tokens = 0
     total_output_tokens = 0
     
     for msg in messages:
-        msg_type = msg.type # human, ai, tool
+        msg_type = msg.type
         msg_data = {
             "role": msg_type,
             "content": msg.content,
             "additional_kwargs": msg.additional_kwargs
         }
         
-        # 提取工具调用信息
         if msg_type == 'ai' and hasattr(msg, 'tool_calls') and msg.tool_calls:
+            msg_data["tool_calls"] = msg.tool_calls
             for tool_call in msg.tool_calls:
                 tool_names_set.add(tool_call['name'])
         
-        # 提取 Token 使用情况
         if msg_type == 'ai' and hasattr(msg, 'response_metadata'):
             usage = msg.response_metadata.get('token_usage', {})
             total_input_tokens += usage.get('input_tokens', 0)
@@ -93,50 +96,49 @@ async def log_response_to_database(state:types.StateT, runtime) -> None:
 
         serialized_trace.append(msg_data)
 
-    # 3. 提取最终回答 (最后一条 AI 消息)
+    # 4. 提取最终回答
     final_answer = messages[-1].content if messages and messages[-1].type == 'ai' else ""
 
-    # 4. 生成 Embedding (需要配置 DashScopeEmbeddings)
-    try:
-        embeddings = qwen_embeddings
-        vector = embeddings.embed_documents([user_query])
-    except Exception as e:
-        print(f"Embedding generation failed: {e}")
-        vector = None
-
-    # 在函数内部，计算执行耗时
+    # 5. 计算执行耗时
     start_time = state.get("start_time")
     execution_duration = None
     if start_time is not None:
-        execution_duration = time.time() - start_time  # 单位：秒，float
+        execution_duration = time.time() - start_time
+
+    # 6. 获取当前轮次号（从 state 中读取，由 log_agent_start 设置）
+    turn_number = state.get('turn_number', 1)
     
-    # 中文分词
-    seg_list = jieba.cut(user_query)
-    seg_content = " ".join(seg_list)
-
-    # 5. 创建 AgentTrace 对象
-    trace = AgentTrace(
-        user_query=user_query,
-        query_embedding=vector[0],
-        full_trace=serialized_trace,
-        final_answer=final_answer,
-        tool_names=list(tool_names_set),
-        token_usage={
-            "input": total_input_tokens, 
-            "output": total_output_tokens,
-            "total": total_input_tokens + total_output_tokens
-        },
-        execution_duration=execution_duration, # 👈 新增这一行
-        metadata_={
-            "agent_runtime": str(runtime),
-            "model": messages[-1].response_metadata.get('model_name') if messages and hasattr(messages[-1], 'response_metadata') else "unknown"
-        },
-        status=ResponseStatus.SUCCESS,
-        fts_vector=func.to_tsvector('simple', seg_content)
-    )
-
-    # 6. 保存到数据库
-    save_agent_trace_to_pgvector(trace)
+    # 7. 异步创建记录（不阻塞主流程）
+    async def save_trace():
+        with Session(engine) as db_session:
+            trace = AgentTrace(
+                session_id=session_id,
+                turn_number=turn_number,
+                last_message_count=len(messages),
+                user_query=user_query,
+                query_embedding=None,
+                full_trace=serialized_trace,
+                final_answer=final_answer,
+                tool_names=list(tool_names_set),
+                token_usage={
+                    "input": total_input_tokens, 
+                    "output": total_output_tokens,
+                    "total": total_input_tokens + total_output_tokens
+                },
+                execution_duration=execution_duration,
+                metadata_={
+                    "agent_runtime": str(runtime),
+                    "model": messages[-1].response_metadata.get('model_name') if messages and hasattr(messages[-1], 'response_metadata') else "unknown"
+                },
+                status=ResponseStatus.SUCCESS,
+                fts_vector=None
+            )
+            db_session.add(trace)
+            db_session.commit()
+            print(f"✅ 链路已追加: Session={session_id[:8]}..., Turn={turn_number}, ID={trace.id}")
+    
+    # 异步执行，不等待结果
+    asyncio.create_task(save_trace())
 
 
 @wrap_tool_call

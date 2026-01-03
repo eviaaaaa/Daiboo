@@ -67,12 +67,24 @@ class HybridSearchService:
         candidate_k = top_k * 3 if use_rerank else top_k
 
         # --- A路：向量检索 (Vector Search) ---
-        # 假设模型都有 embedding 字段
-        vector_stmt = select(model_class).order_by(
-            model_class.embedding.cosine_distance(query_embedding)
-        ).limit(candidate_k)
+        # 动态获取模型的 embedding 字段名
+        embedding_field_name = None
+        if hasattr(model_class, '__mapper__'):
+            for attr_name in dir(model_class):
+                if not attr_name.startswith('_'):
+                    attr = getattr(model_class, attr_name, None)
+                    if hasattr(attr, 'type') and hasattr(attr.type, '__class__'):
+                        if 'Vector' in attr.type.__class__.__name__:
+                            embedding_field_name = attr_name
+                            break
         
-        vector_results = self.session.scalars(vector_stmt).all()
+        vector_results = []
+        if embedding_field_name:
+            embedding_column = getattr(model_class, embedding_field_name)
+            vector_stmt = select(model_class).order_by(
+                embedding_column.cosine_distance(query_embedding)
+            ).limit(candidate_k)
+            vector_results = self.session.scalars(vector_stmt).all()
 
         # --- B路：关键词检索 (Keyword Search) ---
         keyword_results = []
@@ -130,9 +142,12 @@ class HybridSearchService:
             # 构造输入对：[[query, doc_content], ...]
             pairs = []
             for doc in candidates:
-                # 尝试获取文本内容，优先尝试 content，其次 user_query (针对 AgentTrace)
-                # 如果模型定义了 search_content_field 属性指向字段名，也可以用 getattr(doc, doc.search_content_field_name)
-                content = getattr(doc, 'content', getattr(doc, 'user_query', ''))
+                # 使用 SearchableMixin 的 search_content_field 属性
+                if hasattr(doc, 'search_content_field'):
+                    content = doc.search_content_field
+                else:
+                    # 兼容旧代码：尝试获取 content 或 user_query
+                    content = getattr(doc, 'content', getattr(doc, 'user_query', ''))
                 pairs.append([query, content])
 
             # 计算分数
