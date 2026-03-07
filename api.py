@@ -20,7 +20,7 @@ if sys.platform == 'win32':
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
 from utils.my_browser import launch_or_connect_browser
-from agent_factory import create_browser_agent, get_agent_tools
+from utils.agent_factory import create_browser_agent, get_agent_tools
 from rag.document_rag_pgvector import save_document_to_pgvector
 
 # 全局状态

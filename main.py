@@ -7,7 +7,7 @@ from langgraph.types import Command
 from playwright.async_api import async_playwright
 
 from utils.my_browser import launch_or_connect_browser
-from agent_factory import create_browser_agent
+from utils.agent_factory import create_browser_agent
 
 if TYPE_CHECKING:
     from playwright.async_api import Browser as AsyncBrowser

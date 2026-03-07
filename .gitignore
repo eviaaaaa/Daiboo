@@ -1,22 +1,27 @@
+# Environments
 .env
-/screen/*
-*.pyc
-/**/__pycache__/
-/**/*.pyc
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# OS Files
 .DS_Store
-tools/__pycache__/__init__.cpython-311.pyc
-tools/__pycache__/fill_text_tool.cpython-311.pyc
-tools/__pycache__/get_page_img.cpython-311.pyc
+
+# IDEs
 .vscode/
+.claude/
+
+# Testing
 .pytest_cache/
-报告.md
-/docs
-项目说明.md
-/storage/*
-/test/vcr_cassettes/*
-temp_uploads/*
-.temp_uploads/*
+test/vcr_cassettes/
 test.ipynb
-.claude/*
-screen/fill.png
-test.ipynb
+
+# Project Specific
+screen/
+storage/
+temp_uploads/
+.temp_uploads/
+docx/
