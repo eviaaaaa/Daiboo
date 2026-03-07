@@ -11,16 +11,20 @@ import typing
 # ========================
 # 配置区
 # ========================
-BROWSER_PATH = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
+BROWSER_PATH = os.getenv("BROWSER_PATH", r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe")
 # 或 Chrome: r"C:\Program Files\Google\Chrome\Application\chrome.exe"
 
 # 使用临时目录避免权限问题
-USER_DATA_DIR = Path(r"C:\playwright_edge_refined")
-DEBUGGING_PORT = 9222
+USER_DATA_DIR = Path(os.getenv("USER_DATA_DIR", r"C:\playwright_edge_refined"))
+DEBUGGING_PORT = int(os.getenv("DEBUGGING_PORT", "9222"))
 DEBUGGING_URL = f"http://127.0.0.1:{DEBUGGING_PORT}"
 
 # 用于保存浏览器子进程的全局变量
 browser_process: typing.Optional[subprocess.Popen] = None
+
+# 加载 .env 依赖
+from dotenv import load_dotenv
+load_dotenv()
 
 # ========================
 # 辅助函数

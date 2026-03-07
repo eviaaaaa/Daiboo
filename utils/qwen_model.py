@@ -6,7 +6,6 @@ from langchain_community.chat_models import tongyi
 
 # Qwen 模型的 profile 配置
 QWEN_PROFILE = {
-    # --- Input constraints ---
     "max_input_tokens": 262_144,    # 对应 [limit] context
     
     # 对应 attachment = false 和 modalities input = ["text"]
@@ -19,8 +18,6 @@ QWEN_PROFILE = {
     # 通常如果不支持多模态输入，也不支持在 Tool Message 中包含这些媒体
     "image_tool_message": False,
     "pdf_tool_message": False,
-
-    # --- Output constraints ---
     "max_output_tokens": 65_536,    # 对应 [limit] output
     
     "reasoning_output": False,      # 对应 reasoning = false

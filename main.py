@@ -24,7 +24,7 @@ async def ainput(prompt: str = "") -> str:
 
 async def main():
     """
-    主函数 - 交互式版本，持续接收用户输入直到输入 'exit' 或 'quit'
+    主函数，持续接收用户输入直到输入 'exit' 或 'quit'
     支持动态 session 管理：输入 'new' 或 'reset' 创建新对话
     """
     import uuid
@@ -54,7 +54,7 @@ async def main():
                 # 检查是否创建新对话
                 if query.lower() in ['new', 'reset', '新对话', '重置']:
                     current_session_id = uuid.uuid4().hex
-                    print(f"🆕 新对话已创建：{current_session_id[:8]}...")
+                    print(f" 新对话已创建：{current_session_id[:8]}...")
                     continue
 
                 if not query:
@@ -64,7 +64,7 @@ async def main():
                 # 如果还没有 session，自动创建
                 if current_session_id is None:
                     current_session_id = uuid.uuid4().hex
-                    print(f"🆕 自动创建对话：{current_session_id[:8]}...")
+                    print(f" 自动创建对话：{current_session_id[:8]}...")
 
                 print(f"\n用户查询：{query}")
                 print(f"对话 ID：{current_session_id[:8]}...")
@@ -74,7 +74,7 @@ async def main():
                         HumanMessage(content=f"用户问题：{query}")
                     ]
                 }
-                print("\n🚀 开始流式执行任务...")
+                print("\n 开始流式执行任务...")
                 # 使用动态 session_id
                 config = {"configurable": {"thread_id": current_session_id}, "recursion_limit": 80}
                 
@@ -100,11 +100,10 @@ async def main():
                         snapshot = await browser_agent.aget_state(config)
                         if snapshot.next:
                             # 发现有挂起的中断任务
-                            print("\n⚠️  检测到需要人工介入的任务！")
+                            print("\n  检测到需要人工介入的任务！")
                             
                             # 获取中断详情 (通常在 tasks[0].interrupts 中)
                             # 这里简化处理，假设只有一个中断
-                            # 注意：LangGraph 的 API 可能会变动，这里基于通用逻辑
                             
                             print("Agent 请求执行敏感操作。")
                             decision = (await ainput(">>> 请审批 (approve/reject): ")).strip().lower()

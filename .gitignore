@@ -14,8 +14,9 @@ tools/__pycache__/get_page_img.cpython-311.pyc
 项目说明.md
 /storage/*
 /test/vcr_cassettes/*
+temp_uploads/*
 .temp_uploads/*
 test.ipynb
 .claude/*
-.claude/settings.json
 screen/fill.png
+test.ipynb

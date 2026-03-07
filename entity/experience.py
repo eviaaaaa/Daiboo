@@ -29,7 +29,7 @@ class Experience(Base, SearchableMixin):
     task_description: Mapped[str] = mapped_column(
         Text, 
         nullable=False,
-        comment="Original user query or task intent"
+        comment="Original user query or task intent"    
     )
     
     # 经验内容 (Markdown 格式)

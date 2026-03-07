@@ -55,7 +55,7 @@ class ContextManagerMiddleware(AgentMiddleware):
     def __init__(
         self,
         model: Optional[BaseChatModel] = None,
-        file_store_path: str = r"c:\my\python\langchain\BrowerController\storage\heavy_messages",
+        file_store_path: str = os.getenv("HEAVY_MESSAGES_DIR", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "storage", "heavy_messages")),
         max_token_ratio: float = 0.8,    # 使用模型 max_input_tokens 的 80%
         single_msg_ratio: float = 0.8,   # 单条消息限制为 max_input_tokens 的 80%
         token_counter: TokenCounter = count_tokens_approximately,

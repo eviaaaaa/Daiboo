@@ -25,7 +25,7 @@ async def test_vl_tool():
     print()
     
     # 测试图片路径
-    image_path = "C:/Users/w2278/tool_screenshots/imgSafeCodeImg_20251130_125508_554.png"
+    image_path = os.getenv("TEST_VL_IMAGE_PATH", "test_fixtures/sample.png")
     path = Path(image_path)
     
     # 验证文件存在
@@ -63,7 +63,7 @@ def test_vl_tool_sync():
     print("=" * 60)
     
     tool = VLAnalysisTool()
-    image_path = "C:/Users/w2278/tool_screenshots/imgSafeCodeImg_20251130_125508_554.png"
+    image_path = os.getenv("TEST_VL_IMAGE_PATH", "test_fixtures/sample.png")
     
     if not Path(image_path).exists():
         print(f"❌ 错误：图片文件不存在：{image_path}")

@@ -27,10 +27,11 @@ from tools import (
     VLAnalysisTool,
     CaptureElementContextTool,
     delay_tool_call,
-    search_knowledge_base
+    search_documents,
+    search_task_experience
 )
 from tools.terminal_tools import terminal_read, terminal_write
-
+from utils.qwen_model import create_qwen_model
 # 单例缓存
 _agent_cache = {}
 
@@ -50,7 +51,8 @@ def get_agent_tools(browser):
         ExtractHyperlinksTool(async_browser=browser),
         terminal_read,
         terminal_write,
-        search_knowledge_base,
+        search_documents,
+        search_task_experience,
     ]
 
 def create_browser_agent(browser, model_name="qwen3-max", enable_thinking=True):
@@ -74,9 +76,10 @@ def create_browser_agent(browser, model_name="qwen3-max", enable_thinking=True):
 
 
     # 初始化模型
-    model = tongyi.ChatTongyi(
+    model = create_qwen_model(
         model_name=model_name,
-        enable_thinking=enable_thinking,
+        temperature=0.0,
+        request_timeout=5000,
     )
 
     # 初始化 ContextManagerMiddleware
@@ -86,8 +89,7 @@ def create_browser_agent(browser, model_name="qwen3-max", enable_thinking=True):
     hitl_middleware = HumanInTheLoopMiddleware(
         interrupt_on={
             "terminal_write": True,  # 拦截写操作，允许 Approve/Edit/Reject
-            "terminal_read": True    # 拦截读操作，允许 Approve/Edit/Reject
-            
+            "terminal_read": True    # 拦截读操作，允许 Approve/Edit/Reject   
         }
     )
 
@@ -95,7 +97,7 @@ def create_browser_agent(browser, model_name="qwen3-max", enable_thinking=True):
     browser_agent = agents.create_agent(
         system_prompt=system_prompt.system_prompt,
         state_schema=MyState,
-        checkpointer= InMemorySaver(),
+        checkpointer=InMemorySaver(),
         model=model,
         tools=tools,
         middleware=[
