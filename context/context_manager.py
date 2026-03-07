@@ -212,9 +212,9 @@ class ContextManagerMiddleware(AgentMiddleware):
                 return messages
             
             messages_to_archive = chat_history[:last_human_idx]
-            messages_to_keep = recent_messages
+            messages_to_keep = recent_messages.copy()
             
-            archive_notice = self._create_archive_notice(messages_to_archive, 
+            notice_text = self._create_archive_notice_text(messages_to_archive, 
                 "最近的对话内容较长，已归档旧消息以节省空间")
         else:
             # 策略 2: 压缩从第一个 HumanMessage 到最后一个 HumanMessage 前一条消息
@@ -233,34 +233,46 @@ class ContextManagerMiddleware(AgentMiddleware):
             # 压缩第一条到最后一条前一条之间的消息
             messages_to_archive = chat_history[first_human_idx:last_human_idx]
             messages_before = chat_history[:first_human_idx]  # 第一条 HumanMessage 之前的消息
-            messages_to_keep = messages_before + recent_messages
+            messages_to_keep = messages_before + recent_messages.copy()
             
-            archive_notice = self._create_archive_notice(messages_to_archive,
+            notice_text = self._create_archive_notice_text(messages_to_archive,
                 "历史对话已归档以优化上下文长度")
         
+        # 将通知内容合并到第一个 HumanMessage 中，避免引入连续的 HumanMessage 导致抛出 400 角色不交替的错误
+        for i, msg in enumerate(messages_to_keep):
+            if isinstance(msg, HumanMessage):
+                original_content = msg.content
+                if isinstance(original_content, list):
+                    new_content = [{"type": "text", "text": f"{notice_text}\n\n"}] + original_content
+                else:
+                    new_content = f"{notice_text}\n\n{original_content}"
+                
+                messages_to_keep[i] = HumanMessage(
+                    content=new_content,
+                    id=msg.id,
+                    additional_kwargs=msg.additional_kwargs
+                )
+                break
+        
         # 组装最终消息列表
-        final_messages = system_msgs + [archive_notice] + messages_to_keep
+        final_messages = system_msgs + messages_to_keep
         
         return final_messages
     
-    def _create_archive_notice(self, messages_to_archive: list[AnyMessage], reason: str) -> HumanMessage:
-        """创建归档通知消息"""
+    def _create_archive_notice_text(self, messages_to_archive: list[AnyMessage], reason: str) -> str:
+        """创建归档通知文本"""
         if not messages_to_archive:
-            return HumanMessage(content=f"[系统]: {reason}")
+            return f"[系统]: {reason}"
         
         # 将消息保存到文件
         round_data = ConversationRoundData(messages_to_archive)
         file_path = self._save_to_file(round_data.full_text, "archived_messages")
         preview = self._create_preview(round_data.full_text, 200)
         
-        archive_notice = HumanMessage(
-            content=f"[系统]: {reason}\n\n"
-                    f"归档文件: {file_path}\n"
-                    f"预览:\n{preview}\n\n"
-                    "如需查看完整历史，请使用 terminal_read 工具读取归档文件。"
-        )
-        
-        return archive_notice
+        return (f"[系统]: {reason}\n\n"
+                f"归档文件: {file_path}\n"
+                f"预览:\n{preview}\n\n"
+                "如需查看完整历史，请使用 terminal_read 工具读取归档文件。")
 
     def _archive_and_summarize(self, rounds_to_archive: list[ConversationRoundData]) -> str:
         archived_items = []
