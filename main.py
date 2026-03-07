@@ -79,51 +79,51 @@ async def main():
                 
                 # 循环处理流式输出和中断
                 while True:
+                    had_exception = False
                     try:
                         async for chunk in browser_agent.astream(inputs, config=config, stream_mode="updates"):
                             mes = chunk.__str__()
                             pprint.pprint(mes[:2000])  # 只打印前2000字符，防止输出过长
                             print("\n" + "=" * 50 + "\n")
-                        
-                        # 如果流正常结束，跳出循环
-                        break
-                        
+
                     except Exception as e:
                         # 检查是否是中断异常 (LangGraph 的中断通常表现为执行停止，但我们需要检查状态)
                         # 注意：astream 可能会在中断时正常返回，我们需要检查 snapshot
                         print(f"执行过程中发生异常: {e}")
+                        had_exception = True
+
+                    # 每次执行完（或异常后）统一检查当前状态
+                    snapshot = await browser_agent.aget_state(config)
+
+                    # 一旦出现执行异常，必须退出循环，避免中断恢复逻辑覆盖退出意图
+                    if had_exception:
                         break
-                    
-                    finally:
-                        # 每次执行完（或中断后），检查当前状态
-                        snapshot = await browser_agent.aget_state(config)
-                        if snapshot.next:
-                            # 发现有挂起的中断任务
-                            print("\n  检测到需要人工介入的任务！")
-                            
-                            # 获取中断详情 (通常在 tasks[0].interrupts 中)
-                            # 这里简化处理，假设只有一个中断
-                            
-                            print("Agent 请求执行敏感操作。")
-                            decision = (await ainput(">>> 请审批 (approve/reject): ")).strip().lower()
-                            
-                            if decision == "approve":
-                                payload = {"decisions": [{"type": "approve"}]}
-                            elif decision == "reject":
-                                reason = await ainput("请输入拒绝理由: ")
-                                payload = {"decisions": [{"type": "reject", "message": reason}]}
-                            else:
-                                print("无效输入，默认拒绝。")
-                                payload = {"decisions": [{"type": "reject", "message": "Invalid user input."}]}
-                                
-                            # 使用 Command(resume=...) 恢复执行
-                            # 更新 inputs 为 None，因为我们是恢复执行
-                            inputs = Command(resume=payload)
-                            print("🔄 恢复执行中...")
-                            continue # 继续 while 循环，再次调用 astream
+
+                    if snapshot.next:
+                        # 发现有挂起的中断任务
+                        print("\n  检测到需要人工介入的任务！")
+
+                        # 获取中断详情 (通常在 tasks[0].interrupts 中)
+                        # 这里简化处理，假设只有一个中断
+                        print("Agent 请求执行敏感操作。")
+                        decision = (await ainput(">>> 请审批 (approve/reject): ")).strip().lower()
+
+                        if decision == "approve":
+                            payload = {"decisions": [{"type": "approve"}]}
+                        elif decision == "reject":
+                            reason = await ainput("请输入拒绝理由: ")
+                            payload = {"decisions": [{"type": "reject", "message": reason}]}
                         else:
-                            # 没有后续任务，彻底结束
-                            break
+                            print("无效输入，默认拒绝。")
+                            payload = {"decisions": [{"type": "reject", "message": "Invalid user input."}]}
+
+                        # 使用 Command(resume=...) 恢复执行
+                        inputs = Command(resume=payload)
+                        print("🔄 恢复执行中...")
+                        continue  # 继续 while 循环，再次调用 astream
+
+                    # 没有后续任务，彻底结束
+                    break
 
 
 if __name__ == "__main__":
