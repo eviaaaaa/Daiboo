@@ -1,5 +1,5 @@
 import uvicorn
-from fastapi import FastAPI, UploadFile, File, HTTPException, Body
+from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -8,7 +8,6 @@ from playwright.async_api import async_playwright
 from langchain.messages import HumanMessage, AIMessage
 from langgraph.types import Command
 import json
-import os
 import shutil
 from pathlib import Path
 import asyncio

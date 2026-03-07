@@ -1,6 +1,6 @@
 import base64
 import os
-from typing import Any, Dict, Optional, Type, Union
+from typing import Any, Optional, Type
 from pydantic import BaseModel, Field
 from langchain_core.tools import BaseTool
 from langchain_core.messages import HumanMessage

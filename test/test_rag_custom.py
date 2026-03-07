@@ -1,6 +1,4 @@
 import pytest
-import os
-from pathlib import Path
 from rag.document_rag_pgvector import save_document_to_pgvector, query_document_from_pgvector
 from entity.rag_document import RagDocument
 from database import engine

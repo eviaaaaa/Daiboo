@@ -2,8 +2,7 @@ from typing import Optional
 import base64
 
 from playwright.async_api import Page
-from langchain.messages import ToolMessage,HumanMessage,ImageContentBlock
-from langchain_core.messages.content import create_image_block
+from langchain.messages import ToolMessage
 from langchain.tools import ToolRuntime
 from langchain_community.tools.playwright import utils
 from langchain_community.tools.playwright.base import BaseBrowserTool

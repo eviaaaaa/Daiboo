@@ -1,5 +1,4 @@
 import uvicorn
-import os
 import webbrowser
 from pathlib import Path
 import time

@@ -17,7 +17,6 @@ from langchain_community.tools.playwright import (
     NavigateTool
 )
 from playwright.async_api import async_playwright
-import pytest
 
 from entity.my_state import MyState
 from loggers.screen_logger import log_agent_response, log_agent_start, log_playwright_tool_call,log_response_to_database
@@ -32,8 +31,7 @@ from dotenv import load_dotenv
 
 from utils.my_vcr import MyVcr
 if TYPE_CHECKING:
-    from playwright.async_api import Browser as AsyncBrowser
-    from playwright.sync_api import Browser as SyncBrowser
+    pass
 load_dotenv()
 QFNU_USERNAME=os.environ["QFNU_USERNAME"]
 QFNU_PASSWORD=os.environ["QFNU_PASSWORD"]

@@ -103,7 +103,7 @@ class ExperienceSummarizer:
             result = self._parse_llm_response(response.content)
             print(result)
             if not result:
-                print(f"⚠️ 无法解析 LLM 响应")
+                print("⚠️ 无法解析 LLM 响应")
                 return None
             
             # 8. 判断是否值得记录
@@ -114,7 +114,7 @@ class ExperienceSummarizer:
             # 9. 生成 Embedding
             experience_text = result.get('experience', '')
             if not experience_text:
-                print(f"⚠️ 经验内容为空")
+                print("⚠️ 经验内容为空")
                 return None
             
             embedding = self.embeddings.embed_documents([experience_text])[0]

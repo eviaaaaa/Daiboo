@@ -6,7 +6,6 @@ from entity.agent_trace import AgentTrace
 from database import engine
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-import json
 
 # 测试用的唯一标识字符串
 TEST_MARKER = "Pytest_Unique_Marker_RAG_TEST_DISTANCE_12345"

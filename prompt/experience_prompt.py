@@ -131,7 +131,7 @@ def format_trace_for_summary(full_trace: list, max_length: int = 15000) -> str:
         # 控制总长度
         current_text = "\n".join(summary_parts)
         if len(current_text) > max_length:
-            summary_parts.append(f"... [后续步骤已省略]")
+            summary_parts.append("... [后续步骤已省略]")
             break
     
     return "\n".join(summary_parts)

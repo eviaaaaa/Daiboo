@@ -2,8 +2,6 @@
 经验系统测试脚本
 测试链路记录、经验总结、经验检索的完整流程
 """
-import asyncio
-import pytest
 from sqlalchemy.orm import Session
 
 from entity import AgentTrace, Experience
@@ -152,7 +150,7 @@ def test_experience_statistics():
         
         # 成功率统计
         total = session.query(Experience).count()
-        success = session.query(Experience).filter(Experience.success == True).count()
+        success = session.query(Experience).filter(Experience.success).count()
         
         if total > 0:
             print(f"\n✅ 总经验数：{total}")

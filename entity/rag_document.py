@@ -1,5 +1,5 @@
 from typing import List, Dict, Any
-from sqlalchemy import Integer, Text
+from sqlalchemy import Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 from pgvector.sqlalchemy import Vector

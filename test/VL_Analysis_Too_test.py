@@ -2,9 +2,9 @@
 测试 VLAnalysisTool 工具是否可用
 """
 import asyncio
+import os
 from pathlib import Path
 from dotenv import load_dotenv
-import pytest
 from utils import MyVcr
 from tools import VLAnalysisTool
 
@@ -47,7 +47,7 @@ async def test_vl_tool():
             image_path=image_path,
             prompt=prompt
         )
-        print(f"\n✅ 工具执行成功！")
+        print("\n✅ 工具执行成功！")
         assert(result.find(CORREND_CODE)), "识别结果中找到预期的验证码内容"
         print(f"📊 识别结果:\n{result}")
     except Exception as e:
@@ -78,7 +78,7 @@ def test_vl_tool_sync():
             prompt=prompt
         )
         assert(result.find(CORREND_CODE)), "识别结果中找到预期的验证码内容"
-        print(f"\n✅ 工具执行成功！")
+        print("\n✅ 工具执行成功！")
         print(f"📊 识别结果:\n{result}")
     except Exception as e:
         print(f"\n❌ 工具执行失败: {e}")

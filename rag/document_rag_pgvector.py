@@ -8,7 +8,7 @@ from langchain_community.document_loaders import (
     UnstructuredMarkdownLoader
 )
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from sqlalchemy import select, text, func
+from sqlalchemy import text, func
 from sqlalchemy.orm import Session
 from utils import qwen_embeddings
 from database import engine

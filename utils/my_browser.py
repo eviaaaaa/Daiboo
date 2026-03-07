@@ -7,6 +7,7 @@ import socket
 from contextlib import closing
 from playwright.sync_api import sync_playwright, Browser, Playwright
 import typing
+from dotenv import load_dotenv
 
 # ========================
 # 配置区
@@ -23,7 +24,6 @@ DEBUGGING_URL = f"http://127.0.0.1:{DEBUGGING_PORT}"
 browser_process: typing.Optional[subprocess.Popen] = None
 
 # 加载 .env 依赖
-from dotenv import load_dotenv
 load_dotenv()
 
 # ========================

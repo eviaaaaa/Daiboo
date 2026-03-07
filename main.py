@@ -10,8 +10,7 @@ from utils.my_browser import launch_or_connect_browser
 from utils.agent_factory import create_browser_agent
 
 if TYPE_CHECKING:
-    from playwright.async_api import Browser as AsyncBrowser
-    from playwright.sync_api import Browser as SyncBrowser
+    pass
 
 
 async def ainput(prompt: str = "") -> str:

@@ -140,7 +140,7 @@ class CaptureElementContextTool(BaseBrowserTool):
         try:
             locator = page.get_by_text(element_description, exact=False)
             if await locator.count() > 0:
-                logger.info(f"✅ [策略4-文本匹配] 通过文本定位到元素")
+                logger.info("✅ [策略4-文本匹配] 通过文本定位到元素")
                 return locator
         except Exception as e:
             logger.warning(f"⚠️ [策略4-文本匹配] 失败: {e}")
@@ -279,7 +279,7 @@ class CaptureElementContextTool(BaseBrowserTool):
         try:
             locator = page.get_by_text(element_description, exact=False)
             if locator.count() > 0:
-                logger.info(f"✅ [策略4-文本匹配] 通过文本定位到元素")
+                logger.info("✅ [策略4-文本匹配] 通过文本定位到元素")
                 return locator
         except Exception as e:
             logger.warning(f"⚠️ [策略4-文本匹配] 失败: {e}")
@@ -813,10 +813,10 @@ class CaptureElementContextTool(BaseBrowserTool):
             # 尝试加载系统字体
             try:
                 font = ImageFont.truetype("arial.ttf", 14)
-            except:
+            except Exception:
                 try:
                     font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 14)
-                except:
+                except Exception:
                     font = ImageFont.load_default()
             draw.text((x, y), text, fill=color, font=font)
         except Exception as e:

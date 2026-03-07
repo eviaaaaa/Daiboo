@@ -1,13 +1,11 @@
 import os
 import dotenv
-from langchain_postgres import PGVector
 from sqlalchemy import (
     create_engine,
     URL, # 引入 URL 对象，更安全地构建连接字符串
 )
 from sympy import false
 
-from utils import qwen_embeddings
 # --- 1. 加载配置 ---
 dotenv.load_dotenv()
 DB_CONFIG = {
@@ -36,7 +34,6 @@ db_url = URL.create(
 # 创建 Engine。这个 engine 对象应该在你的应用中是单例的。
 engine = create_engine(db_url, echo=false)
 # 遍历实体类，创建所有表
-from entity.base import Base  # 确保导入 Base，以便调用 Base.metadata
 # 注意：实际的表创建应该在需要的地方调用，而不是在模块导入时
 # Base.metadata.create_all(engine)
 

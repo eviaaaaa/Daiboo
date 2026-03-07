@@ -4,7 +4,6 @@
 """
 import os
 import asyncio
-import pprint
 from typing import TYPE_CHECKING
 
 from langchain import agents
@@ -17,7 +16,6 @@ from langchain_community.tools.playwright import (
     NavigateTool,
 )
 from playwright.async_api import async_playwright
-import pytest
 from sqlalchemy.orm import Session
 
 from entity import MyState
@@ -29,7 +27,7 @@ from dotenv import load_dotenv
 from utils.my_vcr import MyVcr
 from langsmith import traceable
 if TYPE_CHECKING:
-    from playwright.async_api import Browser as AsyncBrowser
+    pass
 load_dotenv()
 
 
@@ -95,7 +93,7 @@ async def test_middleware_logging():
             }
             
             print("\n🚀 开始执行任务...")
-            print(f"📝 任务内容: 访问https://www.baidu.com/ 并获取页面标题")
+            print("📝 任务内容: 访问https://www.baidu.com/ 并获取页面标题")
             
             # 执行任务
             config = {"configurable": {"thread_id": "session_1"}, "recursion_limit": 80}
@@ -131,8 +129,8 @@ async def test_middleware_logging():
                 AgentTrace.created_at.desc()
             ).first()
             
-            print(f"\n✅ 中间件工作正常！")
-            print(f"📝 最新记录信息:")
+            print("\n✅ 中间件工作正常！")
+            print("📝 最新记录信息:")
             print(f"   - User Query: {latest_trace.user_query[:100]}...")
             print(f"   - Created At: {latest_trace.created_at}")
             print(f"   - Full Trace Length: {len(str(latest_trace.full_trace))} 字符")

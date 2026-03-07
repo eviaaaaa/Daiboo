@@ -8,10 +8,10 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, RemoveMessage
-from langchain_core.messages.utils import count_tokens_approximately
-from context.context_manager import ContextManagerMiddleware
-from utils import create_qwen_model
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, RemoveMessage  # noqa: E402
+from langchain_core.messages.utils import count_tokens_approximately  # noqa: E402
+from context.context_manager import ContextManagerMiddleware  # noqa: E402
+from utils import create_qwen_model  # noqa: E402
 
 
 def create_long_content(base_text: str, target_tokens: int) -> str:
@@ -104,7 +104,7 @@ def test_recent_messages_ok_compress_history():
     if result:
         # 过滤掉 RemoveMessage
         compressed_messages = [m for m in result["messages"] if not isinstance(m, RemoveMessage)]
-        print(f"\n✅ 触发压缩")
+        print("\n✅ 触发压缩")
         print(f"压缩后消息数量: {len(compressed_messages)}")
         print(f"压缩后 token 数: {count_tokens_approximately(compressed_messages)}")
         
@@ -165,7 +165,7 @@ def test_recent_messages_exceed_compress_old():
     if result:
         # 过滤掉 RemoveMessage
         compressed_messages = [m for m in result["messages"] if not isinstance(m, RemoveMessage)]
-        print(f"\n✅ 触发压缩")
+        print("\n✅ 触发压缩")
         print(f"压缩后消息数量: {len(compressed_messages)}")
         print(f"压缩后 token 数: {count_tokens_approximately(compressed_messages)}")
         
@@ -176,7 +176,7 @@ def test_recent_messages_exceed_compress_old():
                 break
         
         # 验证旧消息是否被压缩
-        has_old = any("旧问题" in str(m.content) for m in compressed_messages if not "[系统]" in str(m.content))
+        has_old = any("旧问题" in str(m.content) for m in compressed_messages if "[系统]" not in str(m.content))
         has_recent = any("最新超长问题" in str(m.content) for m in compressed_messages)
         print(f"\n旧消息是否保留: {'❌ 是 (不应保留)' if has_old else '✅ 否 (已压缩)'}")
         print(f"最近消息是否保留: {'✅ 是' if has_recent else '❌ 否'}")
@@ -215,12 +215,12 @@ def test_single_message_offload():
     
     if result:
         processed_messages = [m for m in result["messages"] if not isinstance(m, RemoveMessage)]
-        print(f"\n✅ 触发处理")
+        print("\n✅ 触发处理")
         
         # 检查是否有消息被替换为文件引用
         for msg in processed_messages:
             if isinstance(msg, HumanMessage) and "系统提示" in msg.content and "已保存至" in msg.content:
-                print(f"\n消息已卸载到文件")
+                print("\n消息已卸载到文件")
                 print(f"预览:\n{msg.content[:500]}...")
                 break
     else:
