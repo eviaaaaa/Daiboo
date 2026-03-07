@@ -57,11 +57,17 @@ class ContextManagerMiddleware(AgentMiddleware):
         max_token_ratio: float = 0.8,    # 使用模型 max_input_tokens 的 80%
         single_msg_ratio: float = 0.8,   # 单条消息限制为 max_input_tokens 的 80%
         token_counter: TokenCounter = count_tokens_approximately,
-        session_id: str = "default_session"
+        session_id: str = "default_session",
+        # 新增参数
+        recent_tool_messages_to_keep: int = 1,  # 保留最近 N 条完整 ToolMessage
+        tool_preview_chars: int = 200,          # ToolMessage 预览前后长度
+        short_content_chars: int = 1000,        # 短内容阈值，低于此不压缩
+        single_msg_max_chars: int = 120000,     # 单消息字符硬阈值
+        max_total_chars: int = 200000,          # 总上下文字符硬阈值
     ):
         """
         初始化 Context Manager Middleware
-        
+
         Args:
             model: LangChain 模型实例，用于读取 max_input_tokens
             file_store_path: 消息存储路径
@@ -69,11 +75,23 @@ class ContextManagerMiddleware(AgentMiddleware):
             single_msg_ratio: 单条消息 token 限制比例，默认 0.8
             token_counter: Token 计数函数
             session_id: 会话 ID
+            recent_tool_messages_to_keep: 保留最近 N 条完整 ToolMessage，默认 1
+            tool_preview_chars: ToolMessage 预览前后长度，默认 200
+            short_content_chars: 短内容阈值，低于此不压缩，默认 1000
+            single_msg_max_chars: 单消息字符硬阈值，默认 120000
+            max_total_chars: 总上下文字符硬阈值，默认 200000
         """
         self.file_store_path = file_store_path
         self.token_counter = token_counter
         self.session_id = session_id
         self.model = model
+
+        # 新增配置参数
+        self.recent_tool_messages_to_keep = recent_tool_messages_to_keep
+        self.tool_preview_chars = tool_preview_chars
+        self.short_content_chars = short_content_chars
+        self.single_msg_max_chars = single_msg_max_chars
+        self.max_total_chars = max_total_chars
         
         # 从模型的 profile 中读取 max_input_tokens
         if model and hasattr(model, 'profile') and isinstance(model.profile, dict):
@@ -108,20 +126,25 @@ class ContextManagerMiddleware(AgentMiddleware):
     def before_model(self, state: AgentState, runtime: Runtime) -> dict[str, Any] | None:
         messages = state["messages"]
         self._ensure_message_ids(messages)
-        
-        # 步骤 1: 卸载过大的消息
+
+        # 步骤 1: 单消息卸载 (字符硬阈值 OR token 阈值)
         processed_messages = self._offload_heavy_messages(messages)
-        
-        # 步骤 2: 检查是否需要归档
+
+        # 步骤 2: 压缩旧 ToolMessage (只保留最近 N 条)
+        processed_messages = self._compress_old_tool_messages(processed_messages)
+
+        # 步骤 3: 检查是否需要归档 (字符总量 OR token 总量超限)
         current_tokens = self.token_counter(processed_messages)
-        if current_tokens < self.max_context_tokens:
+        total_chars = self._count_total_chars(processed_messages)
+
+        if current_tokens < self.max_context_tokens and total_chars < self.max_total_chars:
             if processed_messages == messages:
                 return None
             return {"messages": processed_messages}
-            
-        # 步骤 3: 归档旧的轮次
+
+        # 步骤 4: 归档旧的轮次
         final_messages = self._archive_old_rounds(processed_messages)
-        
+
         return {
             "messages": [
                 RemoveMessage(id=REMOVE_ALL_MESSAGES),
@@ -129,10 +152,99 @@ class ContextManagerMiddleware(AgentMiddleware):
             ]
         }
 
+    def _count_total_chars(self, messages: list[AnyMessage]) -> int:
+        """计算消息列表的总字符数"""
+        total = 0
+        for msg in messages:
+            content = msg.content
+            if isinstance(content, str):
+                total += len(content)
+            elif isinstance(content, list):
+                for item in content:
+                    if isinstance(item, dict) and "text" in item:
+                        total += len(item["text"])
+        return total
+
     def _ensure_message_ids(self, messages: list[AnyMessage]) -> None:
         for msg in messages:
             if msg.id is None:
                 msg.id = str(uuid.uuid4())
+
+    def _compress_old_tool_messages(self, messages: list[AnyMessage]) -> list[AnyMessage]:
+        """
+        压缩旧的 ToolMessage：只完整保留最近 N 条，其余长 ToolMessage 压缩为预览
+
+        Args:
+            messages: 消息列表
+
+        Returns: 处理后的消息列表
+        """
+        # 找出所有 ToolMessage 的索引 (从后向前)
+        tool_msg_indices = []
+        for i, msg in enumerate(messages):
+            if isinstance(msg, ToolMessage):
+                tool_msg_indices.append(i)
+
+        if not tool_msg_indices:
+            return messages
+
+        # 需要保留的最近 ToolMessage 数量
+        keep_count = self.recent_tool_messages_to_keep
+
+        # 如果 ToolMessage 数量 <= 保留数量，无需压缩
+        if len(tool_msg_indices) <= keep_count:
+            return messages
+
+        # 需要压缩的 ToolMessage (从早到晚)
+        indices_to_compress = tool_msg_indices[:-keep_count] if keep_count > 0 else tool_msg_indices
+
+        new_messages = list(messages)
+        for idx in indices_to_compress:
+            msg = new_messages[idx]
+
+            # 获取内容字符串
+            content = msg.content
+            if isinstance(content, list):
+                # 处理多模态内容，转换为文本
+                content_str = ""
+                for item in content:
+                    if isinstance(item, dict):
+                        if item.get("type") == "text":
+                            content_str += item.get("text", "")
+                        elif item.get("type") == "image_url":
+                            content_str += "[图片内容]"
+            else:
+                content_str = str(content)
+
+            content_len = len(content_str)
+
+            # 短内容不压缩
+            if content_len <= self.short_content_chars:
+                continue
+
+            # 长内容压缩：保存到文件并替换为预览
+            file_path = self._save_to_file(content_str, "toolmsg_content")
+            preview = self._create_preview(content_str, self.tool_preview_chars)
+
+            new_content = (
+                f"[系统提示: 此 ToolMessage 内容过长 (共 {content_len} 字符)。\n"
+                f"完整内容已保存至: {file_path}。\n"
+                f"以下是内容预览:\n"
+                f"--- BEGIN PREVIEW ---\n{preview}\n--- END PREVIEW ---\n"
+                f"如果预览信息不足，请使用 terminal_read 工具读取完整文件。]"
+            )
+
+            # 创建新的 ToolMessage，保留必要字段
+            new_messages[idx] = ToolMessage(
+                content=new_content,
+                tool_call_id=msg.tool_call_id,
+                name=msg.name,
+                id=msg.id,
+                additional_kwargs=msg.additional_kwargs
+            )
+            print(f"⚠️ 旧 ToolMessage 已压缩: {content_len} 字符 -> {file_path}")
+
+        return new_messages
 
     def _offload_heavy_messages(self, messages: list[AnyMessage]) -> list[AnyMessage]:
         new_messages = []
@@ -141,36 +253,40 @@ class ContextManagerMiddleware(AgentMiddleware):
                 # 检查内容长度
                 content_str = str(msg.content)
                 content_len = len(content_str)
-                
+
                 # 使用字符长度估算（1 token ≈ 4 chars for Chinese, ≈ 1 char for English）
                 # 取平均值：1 token ≈ 2 chars
                 estimated_tokens = content_len // 2
-                
-                # 如果估算超过限制，直接卸载，避免精确计数（太耗时）
-                if estimated_tokens > self.single_msg_limit:
+
+                # 字符硬阈值 OR token 阈值，任一触发即卸载
+                chars_exceeded = content_len > self.single_msg_max_chars
+                tokens_exceeded = estimated_tokens > self.single_msg_limit
+
+                if chars_exceeded or tokens_exceeded:
+                    trigger = "字符" if chars_exceeded else "token"
                     file_path = self._save_to_file(content_str, "msg_content")
                     preview = self._create_preview(content_str, 500)
 
                     new_content = (
-                        f"[系统提示: 此消息内容过长 (共 {content_len} 字符，估计 {estimated_tokens} tokens)。\n"
+                        f"[系统提示: 此消息内容过长 (共 {content_len} 字符，估计 {estimated_tokens} tokens，触发条件: {trigger}超限)。\n"
                         f"完整内容已保存至: {file_path}。\n"
                         f"以下是内容预览:\n"
                         f"--- BEGIN PREVIEW ---\n{preview}\n--- END PREVIEW ---\n"
                         f"如果预览信息不足，请使用 terminal_read 工具读取完整文件。]"
                     )
-                    
+
                     # 创建带有新内容的副本
                     if isinstance(msg, HumanMessage):
                         msg_copy = HumanMessage(content=new_content, id=msg.id, additional_kwargs=msg.additional_kwargs)
                     elif isinstance(msg, ToolMessage):
-                        msg_copy = ToolMessage(content=new_content, tool_call_id=msg.tool_call_id, id=msg.id, additional_kwargs=msg.additional_kwargs)
+                        msg_copy = ToolMessage(content=new_content, tool_call_id=msg.tool_call_id, name=msg.name, id=msg.id, additional_kwargs=msg.additional_kwargs)
                     else:
                         msg_copy = msg
-                        
+
                     new_messages.append(msg_copy)
-                    print(f"⚠️ 消息过长已卸载: {content_len} 字符 -> {file_path}")
+                    print(f"⚠️ 消息过长已卸载 ({trigger}超限): {content_len} 字符 -> {file_path}")
                     continue
-            
+
             new_messages.append(msg)
         return new_messages
 
