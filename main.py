@@ -4,9 +4,9 @@ from typing import TYPE_CHECKING
 
 from langchain.messages import HumanMessage
 from langgraph.types import Command
-from playwright.async_api import async_playwright
 
-from utils.my_browser import launch_or_connect_browser
+from utils.my_browser import ensure_browser_running
+from utils.mcp_client import create_persistent_mcp_session
 from utils.agent_factory import create_browser_agent
 
 if TYPE_CHECKING:
@@ -19,7 +19,6 @@ async def ainput(prompt: str = "") -> str:
     """
     return await asyncio.to_thread(input, prompt)
 
- 
 
 async def main():
     """
@@ -27,103 +26,102 @@ async def main():
     支持动态 session 管理：输入 'new' 或 'reset' 创建新对话
     """
     import uuid
-    
-    async with async_playwright() as p:
-        async with await launch_or_connect_browser(p) as browser:
-            # 使用工厂函数创建 agent
-            browser_agent = create_browser_agent(browser)
 
-            print("=" * 60)
-            print("NexusSurf 浏览器自动化助手")
-            print("命令：'exit'/'quit' 退出 | 'new'/'reset' 新建对话")
-            print("=" * 60)
-            
-            # 动态 session 管理
-            current_session_id = None
+    # 确保浏览器进程运行
+    await ensure_browser_running()
 
+    # 使用持久 MCP 会话（单一 subprocess，状态跨工具调用保持）
+    async with create_persistent_mcp_session() as mcp_tools:
+        # 使用工厂函数创建 agent
+        browser_agent = await create_browser_agent(mcp_tools)
+
+        print("=" * 60)
+        print("NexusSurf 浏览器自动化助手")
+        print("命令：'exit'/'quit' 退出 | 'new'/'reset' 新建对话")
+        print("=" * 60)
+
+        # 动态 session 管理
+        current_session_id = None
+
+        while True:
+            # 从用户输入读取查询
+            query = (await ainput("\n请输入您的查询：")).strip()
+
+            # 检查是否退出
+            if query.lower() in ['exit', 'quit']:
+                print("退出程序")
+                break
+
+            # 检查是否创建新对话
+            if query.lower() in ['new', 'reset', '新对话', '重置']:
+                current_session_id = uuid.uuid4().hex
+                print(f" 新对话已创建：{current_session_id[:8]}...")
+                continue
+
+            if not query:
+                print("查询不能为空，请重新输入")
+                continue
+
+            # 如果还没有 session，自动创建
+            if current_session_id is None:
+                current_session_id = uuid.uuid4().hex
+                print(f" 自动创建对话：{current_session_id[:8]}...")
+
+            print(f"\n用户查询：{query}")
+            print(f"对话 ID：{current_session_id[:8]}...")
+
+            inputs = {
+                "messages": [
+                    HumanMessage(content=f"用户问题：{query}")
+                ]
+            }
+            print("\n 开始流式执行任务...")
+            # 使用动态 session_id
+            config = {"configurable": {"thread_id": current_session_id}, "recursion_limit": 80}
+
+            # 循环处理流式输出和中断
             while True:
-                # 从用户输入读取查询
-                query = (await ainput("\n请输入您的查询：")).strip()
+                had_exception = False
+                try:
+                    async for chunk in browser_agent.astream(inputs, config=config, stream_mode="updates"):
+                        mes = chunk.__str__()
+                        pprint.pprint(mes[:2000])  # 只打印前2000字符，防止输出过长
+                        print("\n" + "=" * 50 + "\n")
 
-                # 检查是否退出
-                if query.lower() in ['exit', 'quit']:
-                    print("退出程序")
+                except Exception as e:
+                    print(f"执行过程中发生异常: {e}")
+                    had_exception = True
+
+                # 每次执行完（或异常后）统一检查当前状态
+                snapshot = await browser_agent.aget_state(config)
+
+                # 一旦出现执行异常，必须退出循环，避免中断恢复逻辑覆盖退出意图
+                if had_exception:
                     break
-                
-                # 检查是否创建新对话
-                if query.lower() in ['new', 'reset', '新对话', '重置']:
-                    current_session_id = uuid.uuid4().hex
-                    print(f" 新对话已创建：{current_session_id[:8]}...")
-                    continue
 
-                if not query:
-                    print("查询不能为空，请重新输入")
-                    continue
-                
-                # 如果还没有 session，自动创建
-                if current_session_id is None:
-                    current_session_id = uuid.uuid4().hex
-                    print(f" 自动创建对话：{current_session_id[:8]}...")
+                if snapshot.next:
+                    # 发现有挂起的中断任务
+                    print("\n  检测到需要人工介入的任务！")
 
-                print(f"\n用户查询：{query}")
-                print(f"对话 ID：{current_session_id[:8]}...")
+                    print("Agent 请求执行敏感操作。")
+                    decision = (await ainput(">>> 请审批 (approve/reject): ")).strip().lower()
 
-                inputs = {
-                    "messages": [
-                        HumanMessage(content=f"用户问题：{query}")
-                    ]
-                }
-                print("\n 开始流式执行任务...")
-                # 使用动态 session_id
-                config = {"configurable": {"thread_id": current_session_id}, "recursion_limit": 80}
-                
-                # 循环处理流式输出和中断
-                while True:
-                    had_exception = False
-                    try:
-                        async for chunk in browser_agent.astream(inputs, config=config, stream_mode="updates"):
-                            mes = chunk.__str__()
-                            pprint.pprint(mes[:2000])  # 只打印前2000字符，防止输出过长
-                            print("\n" + "=" * 50 + "\n")
+                    if decision == "approve":
+                        payload = {"decisions": [{"type": "approve"}]}
+                    elif decision == "reject":
+                        reason = await ainput("请输入拒绝理由: ")
+                        payload = {"decisions": [{"type": "reject", "message": reason}]}
+                    else:
+                        print("无效输入，默认拒绝。")
+                        payload = {"decisions": [{"type": "reject", "message": "Invalid user input."}]}
 
-                    except Exception as e:
-                        # 检查是否是中断异常 (LangGraph 的中断通常表现为执行停止，但我们需要检查状态)
-                        # 注意：astream 可能会在中断时正常返回，我们需要检查 snapshot
-                        print(f"执行过程中发生异常: {e}")
-                        had_exception = True
+                    # 使用 Command(resume=...) 恢复执行
+                    inputs = Command(resume=payload)
+                    print("恢复执行中...")
+                    continue  # 继续 while 循环，再次调用 astream
 
-                    # 每次执行完（或异常后）统一检查当前状态
-                    snapshot = await browser_agent.aget_state(config)
-
-                    # 一旦出现执行异常，必须退出循环，避免中断恢复逻辑覆盖退出意图
-                    if had_exception:
-                        break
-
-                    if snapshot.next:
-                        # 发现有挂起的中断任务
-                        print("\n  检测到需要人工介入的任务！")
-
-                        # 获取中断详情 (通常在 tasks[0].interrupts 中)
-                        # 这里简化处理，假设只有一个中断
-                        print("Agent 请求执行敏感操作。")
-                        decision = (await ainput(">>> 请审批 (approve/reject): ")).strip().lower()
-
-                        if decision == "approve":
-                            payload = {"decisions": [{"type": "approve"}]}
-                        elif decision == "reject":
-                            reason = await ainput("请输入拒绝理由: ")
-                            payload = {"decisions": [{"type": "reject", "message": reason}]}
-                        else:
-                            print("无效输入，默认拒绝。")
-                            payload = {"decisions": [{"type": "reject", "message": "Invalid user input."}]}
-
-                        # 使用 Command(resume=...) 恢复执行
-                        inputs = Command(resume=payload)
-                        print("🔄 恢复执行中...")
-                        continue  # 继续 while 循环，再次调用 astream
-
-                    # 没有后续任务，彻底结束
-                    break
+                # 没有后续任务，彻底结束
+                break
 
 
 if __name__ == "__main__":

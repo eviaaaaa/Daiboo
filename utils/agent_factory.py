@@ -1,16 +1,8 @@
 from langchain import agents
-from langchain_community.tools.playwright import (
-    ClickTool,
-    CurrentWebPageTool,
-    ExtractHyperlinksTool,
-    ExtractTextTool,
-    GetElementsTool,
-    NavigateBackTool,
-    NavigateTool
-)
 from langchain.agents.middleware import HumanInTheLoopMiddleware
 from context.context_manager import ContextManagerMiddleware
 from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.prebuilt.tool_node import ToolNode
 from entity.my_state import MyState
 from loggers.screen_logger import (
     log_agent_response,
@@ -21,8 +13,6 @@ from loggers.screen_logger import (
 from loggers.experience_middleware import log_experience
 from prompt import system_prompt
 from tools import (
-    FillTextTool,
-    GetAllElementTool,
     VLAnalysisTool,
     CaptureElementContextTool,
     delay_tool_call,
@@ -34,32 +24,30 @@ from utils.qwen_model import create_qwen_model
 # 单例缓存
 _agent_cache = {}
 
-def get_agent_tools(browser):
-    """获取工具列表"""
+def get_agent_tools(mcp_tools, screenshot_helper=None):
+    """获取工具列表
+
+    Args:
+        mcp_tools: MCP 浏览器工具列表
+        screenshot_helper: ScreenshotHelper 实例，供 CaptureElementContextTool 使用
+    """
     return [
-        FillTextTool(async_browser=browser),
-        ClickTool(async_browser=browser, playwright_timeout=10000, visible_only=False),
-        CurrentWebPageTool(async_browser=browser),
-        ExtractTextTool(async_browser=browser),
-        NavigateTool(async_browser=browser),
-        GetAllElementTool(async_browser=browser),
-        VLAnalysisTool(),
-        CaptureElementContextTool(async_browser=browser),
-        NavigateBackTool(async_browser=browser),
-        GetElementsTool(async_browser=browser),
-        ExtractHyperlinksTool(async_browser=browser),
-        terminal_read,
-        terminal_write,
-        search_documents,
-        search_task_experience,
+        *mcp_tools,                                                  # MCP 浏览器工具
+        CaptureElementContextTool(helper=screenshot_helper),         # 重写版
+        VLAnalysisTool(),                                            # 保留
+        terminal_read,                                               # 保留
+        terminal_write,                                              # 保留
+        search_documents,                                            # 保留
+        search_task_experience,                                      # 保留
     ]
 
-def create_browser_agent(browser, model_name="qwen3-max", enable_thinking=True):
+async def create_browser_agent(mcp_tools, screenshot_helper=None, model_name="qwen3.5-plus", enable_thinking=True):
     """
     创建并配置浏览器自动化 Agent（单例模式）
 
     Args:
-        browser: Playwright 浏览器实例
+        mcp_tools: MCP 浏览器工具列表
+        screenshot_helper: ScreenshotHelper 实例
         model_name: 使用的模型名称
         enable_thinking: 是否启用思考模式
     """
@@ -71,8 +59,7 @@ def create_browser_agent(browser, model_name="qwen3-max", enable_thinking=True):
         return _agent_cache[cache_key]
 
     # 初始化工具集
-    tools = get_agent_tools(browser)
-
+    tools = get_agent_tools(mcp_tools, screenshot_helper)
 
     # 初始化模型
     model = create_qwen_model(
@@ -88,7 +75,7 @@ def create_browser_agent(browser, model_name="qwen3-max", enable_thinking=True):
     hitl_middleware = HumanInTheLoopMiddleware(
         interrupt_on={
             "terminal_write": True,  # 拦截写操作，允许 Approve/Edit/Reject
-            "terminal_read": True    # 拦截读操作，允许 Approve/Edit/Reject   
+            "terminal_read": True    # 拦截读操作，允许 Approve/Edit/Reject
         }
     )
 
@@ -110,6 +97,13 @@ def create_browser_agent(browser, model_name="qwen3-max", enable_thinking=True):
             delay_tool_call,
         ],
     )
+
+    # 修补 ToolNode：捕获所有工具执行异常并返回为 ToolMessage
+    # 默认只捕获 ToolInvocationError（参数校验），MCP 执行错误会直接崩溃 Agent
+    for node in browser_agent.nodes.values():
+        bound = getattr(node, 'bound', None)
+        if isinstance(bound, ToolNode):
+            bound._handle_tool_errors = True
 
     # 缓存已编译的 agent
     _agent_cache[cache_key] = browser_agent

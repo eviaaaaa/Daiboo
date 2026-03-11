@@ -2,15 +2,14 @@ import asyncio
 import time
 import os
 from typing import Any
-from playwright.async_api import Page
-from langchain.agents.middleware import  after_agent,wrap_tool_call,types,before_agent
-from langchain_community.tools.playwright.base import BaseBrowserTool
-from langchain_community.tools.playwright import utils
+from langchain.agents.middleware import after_agent, wrap_tool_call, types, before_agent
 from sqlalchemy.orm import Session
 
 from entity import MyState
 from entity.agent_trace import AgentTrace, ResponseStatus
 from database import engine
+from utils.mcp_client import is_mcp_browser_tool
+from utils.qwen_model import normalize_content
 
 
 
@@ -64,11 +63,11 @@ async def log_response_to_database(state:types.StateT, runtime) -> None:
     user_query = ""
     for msg in reversed(messages):
         if msg.type == 'human':
-            user_query = msg.content
+            user_query = normalize_content(msg.content)
             break
             
     if not user_query and messages:
-        user_query = messages[1].content if len(messages) > 1 else messages[0].content
+        user_query = normalize_content(messages[1].content if len(messages) > 1 else messages[0].content)
     
     # 3. 序列化整个链路
     serialized_trace = []
@@ -80,7 +79,7 @@ async def log_response_to_database(state:types.StateT, runtime) -> None:
         msg_type = msg.type
         msg_data = {
             "role": msg_type,
-            "content": msg.content,
+            "content": normalize_content(msg.content),
             "additional_kwargs": msg.additional_kwargs
         }
         
@@ -97,7 +96,7 @@ async def log_response_to_database(state:types.StateT, runtime) -> None:
         serialized_trace.append(msg_data)
 
     # 4. 提取最终回答
-    final_answer = messages[-1].content if messages and messages[-1].type == 'ai' else ""
+    final_answer = normalize_content(messages[-1].content) if messages and messages[-1].type == 'ai' else ""
 
     # 5. 计算执行耗时
     start_time = state.get("start_time")
@@ -144,27 +143,15 @@ async def log_response_to_database(state:types.StateT, runtime) -> None:
 @wrap_tool_call
 async def log_playwright_tool_call(
     request, handler
-) :
+):
     """
-    当前工具调用的中间件。如果工具是 BaseBrowserTool 的实例，则截取当前页面的屏幕截图并将其保存到指定路径。
-    该路径基于会话 ID、当前时间戳和工具调用 ID 进行命名，以确保唯一性。 
+    当前工具调用的中间件。如果工具是 MCP 浏览器工具，则截取当前页面的屏幕截图并将其保存到指定路径。
+    该路径基于会话 ID、当前时间戳和工具调用 ID 进行命名，以确保唯一性。
     """
-    if isinstance(request.tool, BaseBrowserTool):
+    tool_name = getattr(request.tool, 'name', '')
+    if is_mcp_browser_tool(tool_name):
         response = await handler(request)
-        tool:BaseBrowserTool = request.tool
-        page:Page =await utils.aget_current_page(tool.async_browser)
-        session_id = request.state['messages'][0].id
-        path=f"./screen/{session_id}/{time.time()}{request.tool_call['id']}_call.png"
-        try:
-            # 增加超时时间到 5000ms (5秒)，并捕获异常，避免截图失败导致整个任务失败
-            # 如果页面加载很慢，可以适当增加，或者设置为 full_page=False
-            await page.screenshot(path=path, timeout=5000)
-        except Exception as e:
-            print(f"Warning: Failed to take screenshot for tool {tool.name}: {e}")
-        
-        print(f"Playwright Tool Called: {tool.name}")
+        print(f"Playwright Tool Called: {tool_name}")
         return response
     else:
         return await handler(request)
-
-        

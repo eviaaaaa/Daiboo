@@ -59,7 +59,7 @@ class ContextManagerMiddleware(AgentMiddleware):
         token_counter: TokenCounter = count_tokens_approximately,
         session_id: str = "default_session",
         # 新增参数
-        recent_tool_messages_to_keep: int = 1,  # 保留最近 N 条完整 ToolMessage
+        recent_tool_messages_to_keep: int = 3,  # 保留最近 N 条完整 ToolMessage
         tool_preview_chars: int = 200,          # ToolMessage 预览前后长度
         short_content_chars: int = 1000,        # 短内容阈值，低于此不压缩
         single_msg_max_chars: int = 120000,     # 单消息字符硬阈值

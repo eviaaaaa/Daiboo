@@ -1,10 +1,10 @@
+from utils.qwen_model import create_qwen_model
 import base64
 import os
 from typing import Any, Optional, Type
 from pydantic import BaseModel, Field
 from langchain_core.tools import BaseTool
 from langchain_core.messages import HumanMessage
-from langchain_community.chat_models.tongyi import ChatTongyi
 from langchain_core.callbacks import (
     AsyncCallbackManagerForToolRun,
     CallbackManagerForToolRun,
@@ -40,7 +40,7 @@ class VLAnalysisTool(BaseTool):
         """初始化Qwen-VL模型"""
         # 优先使用提供的API密钥，否则从环境变量获取
         
-        self._model = ChatTongyi(
+        self._model = create_qwen_model(
             model_name=self.model_name,
         )
     

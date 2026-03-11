@@ -10,6 +10,7 @@ from langchain_core.messages import HumanMessage
 from entity.experience import Experience
 from database import engine
 from utils import qwen_embeddings, create_qwen_model
+from utils.qwen_model import normalize_content
 from prompt.experience_prompt import EXPERIENCE_SUMMARY_PROMPT, format_trace_for_summary
 
 
@@ -96,11 +97,15 @@ class ExperienceSummarizer:
             )
             
             # 6. 调用 LLM 生成总结
-            print(f"🤔 开始分析 (Session: {session_id[:8]}..., Turn: {turn_number})...")
-            response = await self.llm.ainvoke([HumanMessage(content=prompt)])
+            print(f"开始分析 (Session: {session_id[:8]}..., Turn: {turn_number})...")
+            try:
+                response = await self.llm.ainvoke([HumanMessage(content=prompt)])
+            except Exception as e:
+                print(f"经验总结 LLM 调用失败: {type(e).__name__}: {e}")
+                return None
             
             # 7. 解析 JSON 结果
-            result = self._parse_llm_response(response.content)
+            result = self._parse_llm_response(normalize_content(response.content))
             print(result)
             if not result:
                 print("⚠️ 无法解析 LLM 响应")

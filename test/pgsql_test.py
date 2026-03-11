@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 from langchain import agents
 from langchain.messages import HumanMessage
-from langchain_community.chat_models import tongyi
+from utils.qwen_model import create_qwen_model
 from langchain_community.tools.playwright import (
     ClickTool,
     CurrentWebPageTool,
@@ -64,8 +64,8 @@ async def test_middleware_logging():
             ]
 
             # 创建模型
-            model = tongyi.ChatTongyi(
-                model_name="qwen3-max",
+            model = create_qwen_model(
+                model_name="qwen3.5-plus",
                 temperature=0.0,
             )
             
