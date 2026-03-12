@@ -19,10 +19,12 @@
 ## 3. 核心代码边界
 
 - `utils/agent_factory.py`: agent 组装与中间件链。
+- `utils/mcp_client.py`: MCP 持久会话管理（`create_persistent_mcp_session`），解决每次工具调用创建新 subprocess 的问题。
+- `utils/my_browser.py`: 浏览器进程管理（启动、CDP 端口检测、清理），启动流程全异步。
 - `context/context_manager.py`: 上下文压缩、归档、消息重写。
-- `tools/`: 工具定义（浏览器、终端、视觉、RAG）。
+- `tools/`: 工具定义。当前包含：`capture_element_context_tool`、`vision_analysis_tool`、`delay_tool_call`、`terminal_tools`、`rag_tools`。浏览器操作工具由 MCP 会话动态加载，不在此目录。
 - `rag/`: 检索与向量相关逻辑。
-- `loggers/`: 记录与经验总结中间件。
+- `loggers/`: 记录与经验总结中间件（仅文字日志，无截图）。
 
 仅在边界明确时修改，跨模块改动需检查调用链是否一致。
 
@@ -40,11 +42,15 @@
 - 改目录结构：同步更新本文件“真实入口/核心边界”。
 - 改运行前置条件：同步更新 `README.md` 环境与排障章节。
 
-## 6. 当前仓库已知事实（2026-03-07）
+## 6. 当前仓库已知事实（2026-03-11）
 
-- `context/context_manager.py` 存在且为生效中间件。
+- 浏览器操作已迁移至 `@playwright/mcp` (snapshot-ref 模式)，通过 `utils/mcp_client.py` 管理持久 MCP 会话。
+- 已废弃并删除的工具：`fill_text_tool`、`get_all_element_tool`、`get_page_img_tool`、`playwright_mcp_tool`。
+- `context/context_manager.py` 存在且为生效中间件，支持旧消息压缩和字符硬阈值双触发。
 - `context/state_manager.py`、`context/assembly_engine.py`、`context/dynamic_id/` 当前不存在。
 - `docx/` 下内容主要是设计和过程文档，不等于运行时代码。
+- `loggers/screen_logger.py` 仅保留文字日志，不再持有 ScreenshotHelper / CDP 连接。
+- `ToolNode` 已全局修补 `_handle_tool_errors = True`，MCP 工具异常不会导致 Agent 直接崩溃。
 
 ## 7. 执行偏好
 
