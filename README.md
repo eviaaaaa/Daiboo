@@ -28,10 +28,13 @@ NexusSurf 通过 **@playwright/mcp** + LangChain/LangGraph 组合，实现可交
 
 ### 2. 安装依赖
 
-当前仓库未提供 `requirements.txt` / `pyproject.toml`，可先安装最小依赖集：
+推荐安装方式：
 
 ```powershell
-pip install langchain langgraph langchain-community langchain-mcp-adapters fastapi uvicorn pydantic playwright psycopg2-binary pgvector
+conda create -n langchainenv python=3.11 -y
+conda activate langchainenv
+pip install -r requirements.txt
+playwright install
 ```
 
 还需安装 Node.js 依赖（Playwright MCP 服务通过 npx 启动）：
