@@ -1,5 +1,6 @@
 from langchain import agents
 from langchain.agents.middleware import HumanInTheLoopMiddleware
+from typing import TYPE_CHECKING, Any
 from context.context_manager import ContextManagerMiddleware
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.prebuilt.tool_node import ToolNode
@@ -21,10 +22,14 @@ from tools import (
 )
 from tools.terminal_tools import terminal_read, terminal_write
 from utils.qwen_model import create_qwen_model
-# 单例缓存
-_agent_cache = {}
 
-def get_agent_tools(mcp_tools, screenshot_helper=None):
+if TYPE_CHECKING:
+    from langgraph.graph.state import CompiledStateGraph
+
+# 单例缓存
+_agent_cache: dict[str, "CompiledStateGraph"] = {}
+
+def get_agent_tools(mcp_tools: Any, screenshot_helper: Any = None) -> list[Any]:
     """获取工具列表
 
     Args:
@@ -41,7 +46,12 @@ def get_agent_tools(mcp_tools, screenshot_helper=None):
         search_task_experience,                                      # 保留
     ]
 
-async def create_browser_agent(mcp_tools, screenshot_helper=None, model_name="qwen3.5-plus", enable_thinking=True):
+async def create_browser_agent(
+    mcp_tools: Any,
+    screenshot_helper: Any = None,
+    model_name: str = "qwen3.5-plus",
+    enable_thinking: bool = True,
+) -> "CompiledStateGraph":
     """
     创建并配置浏览器自动化 Agent（单例模式）
 

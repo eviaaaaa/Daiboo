@@ -2,10 +2,11 @@ import uvicorn
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from contextlib import asynccontextmanager
 from langchain.messages import HumanMessage, AIMessage
 from langgraph.types import Command
+from typing import TYPE_CHECKING, Any, AsyncIterator, Optional
 import json
 import shutil
 from pathlib import Path
@@ -23,19 +24,27 @@ from utils.mcp_client import create_persistent_mcp_session
 from utils.agent_factory import create_browser_agent, get_agent_tools
 from rag.document_rag_pgvector import save_document_to_pgvector
 
+if TYPE_CHECKING:
+    from langchain_core.runnables import RunnableConfig
+    from langgraph.graph.state import CompiledStateGraph
+    try:
+        from langgraph.types import StateSnapshot
+    except ImportError:
+        from langgraph.pregel.types import StateSnapshot
+
 # 全局状态
 class AppState:
-    agent = None
-    mcp_tools = None  # 缓存工具列表，避免重复创建 subprocess
+    agent: "CompiledStateGraph"
+    mcp_tools: Any | None = None  # 缓存工具列表，避免重复创建 subprocess
 
 state = AppState()
 
 # MCP 持久会话的 context manager 引用（需要手动管理生命周期）
-_mcp_session_cm = None
-_mcp_session_cleanup = None
+_mcp_session_cm: Any | None = None
+_mcp_session_cleanup: Any | None = None
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # 确保浏览器进程运行
     print("Ensuring browser is running...")
     await ensure_browser_running()
@@ -55,7 +64,15 @@ async def lifespan(app: FastAPI):
     # 退出 async with 后 MCP subprocess 自动清理
     print("MCP session cleaned up.")
 
-app = FastAPI(lifespan=lifespan, title="NexusSurf API")
+app = FastAPI(
+    lifespan=lifespan,
+    title="NexusSurf API",
+    description=(
+        "提供浏览器自动化对话、可用工具查询和文档上传索引能力。"
+        "其中 `/chat` 使用 NDJSON 流式返回执行过程与最终消息。"
+    ),
+    version="1.0.0",
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -66,23 +83,70 @@ app.add_middleware(
 )
 
 class ChatRequest(BaseModel):
-    message: str
-    thread_id: str = "default"
+    """聊天接口请求体。"""
+
+    message: str = Field(..., description="用户输入的消息内容，或在中断恢复场景下提交的审批结果。")
+    thread_id: str = Field("default", description="会话线程 ID，用于复用同一条 LangGraph 对话上下文。")
 
 
-@app.post("/chat")
-async def chat(request: ChatRequest):
-    async def event_generator():
-        config = {"configurable": {"thread_id": request.thread_id}, "recursion_limit": 30}
+class ToolInfo(BaseModel):
+    """工具信息。"""
+
+    name: str = Field(..., description="工具名称。")
+    description: str = Field(..., description="工具用途说明。")
+
+
+class UploadResponse(BaseModel):
+    """上传并索引文档后的响应体。"""
+
+    status: str = Field(..., description="处理状态，成功时为 `success`。")
+    filename: str = Field(..., description="上传文件名。")
+    message: str = Field(..., description="处理结果说明。")
+
+
+class ErrorResponse(BaseModel):
+    """错误响应体。"""
+
+    detail: str = Field(..., description="错误详情。")
+
+
+@app.post(
+    "/chat",
+    summary="发送对话消息",
+    description=(
+        "向浏览器自动化 Agent 发送一条消息，并以 `application/x-ndjson` 流式返回执行日志、"
+        "工具调用、中断通知和最终模型消息。"
+    ),
+    responses={
+        200: {
+            "description": "NDJSON 流式响应。每行都是一个 JSON 对象，`type` 可能为 `log`、`tool`、`message`、`interrupt` 或 `error`。",
+            "content": {
+                "application/x-ndjson": {
+                    "example": (
+                        '{"type":"log","content":"Resuming with approval..."}\n'
+                        '{"type":"tool","content":"..."}\n'
+                        '{"type":"message","content":"任务已完成"}\n'
+                    )
+                }
+            },
+        }
+    },
+    tags=["chat"],
+)
+async def chat(request: ChatRequest) -> StreamingResponse:
+    """流式执行 Agent 对话。"""
+
+    async def event_generator() -> AsyncIterator[str]:
+        config: "RunnableConfig" = {"configurable": {"thread_id": request.thread_id}, "recursion_limit": 30}
 
         # 检查是否存在中断状态
-        snapshot = await state.agent.aget_state(config)
+        snapshot: "StateSnapshot" = await state.agent.aget_state(config)
         if snapshot.next:
             # 我们处于中断状态，将用户输入解释为决策
             user_input = request.message.strip().lower()
             if user_input in ["approve", "同意", "yes", "y"]:
-                payload = {"decisions": [{"type": "approve"}]}
-                inputs = Command(resume=payload)
+                payload: dict[str, list[dict[str, str]]] = {"decisions": [{"type": "approve"}]}
+                inputs: Command | dict[str, list[HumanMessage]] = Command(resume=payload)
                 yield json.dumps({"type": "log", "content": "Resuming with approval..."}, ensure_ascii=False) + "\n"
             elif user_input in ["reject", "拒绝", "no", "n"]:
                 payload = {"decisions": [{"type": "reject", "message": "User rejected."}]}
@@ -132,7 +196,7 @@ async def chat(request: ChatRequest):
                     yield f"{data}\n"
 
             # 检查中断
-            snapshot = await state.agent.aget_state(config)
+            snapshot: "StateSnapshot" = await state.agent.aget_state(config)
             if snapshot.next:
                 data = json.dumps({"type": "interrupt", "content": "Task interrupted. Approval needed."}, ensure_ascii=False)
                 yield f"{data}\n"
@@ -143,19 +207,43 @@ async def chat(request: ChatRequest):
 
     return StreamingResponse(event_generator(), media_type="application/x-ndjson")
 
-@app.get("/tools")
-async def list_tools():
+@app.get(
+    "/tools",
+    summary="获取可用工具列表",
+    description="返回当前 Agent 已加载的工具名称及说明，可用于前端展示或调试。",
+    response_model=list[ToolInfo],
+    tags=["tools"],
+)
+async def list_tools() -> list[dict[str, str]]:
+    """列出当前可用的 Agent 工具。"""
+
     if not state.mcp_tools:
         return []
     # 直接使用缓存的工具列表，不再创建新 subprocess
     tools = get_agent_tools(state.mcp_tools)
     return [{"name": t.name, "description": t.description} for t in tools]
 
-@app.post("/upload")
-async def upload_document(file: UploadFile = File(...)):
-    temp_dir = Path("temp_uploads")
+@app.post(
+    "/upload",
+    summary="上传文档并建立索引",
+    description="上传单个文件到临时目录，并调用 PGVector 文档索引流程完成入库。",
+    response_model=UploadResponse,
+    responses={
+        400: {"model": ErrorResponse, "description": "上传文件缺少文件名。"},
+        500: {"model": ErrorResponse, "description": "文件保存或索引过程中发生异常。"},
+    },
+    tags=["documents"],
+)
+async def upload_document(
+    file: UploadFile = File(..., description="待上传并建立索引的文件。")
+) -> dict[str, str]:
+    """上传文件并写入向量库。"""
+
+    temp_dir: Path = Path("temp_uploads")
     temp_dir.mkdir(exist_ok=True)
-    file_path = temp_dir / file.filename
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="File name is required")
+    file_path: Path = temp_dir / file.filename
 
     try:
         with open(file_path, "wb") as buffer:
