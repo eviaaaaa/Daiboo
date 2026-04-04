@@ -5,6 +5,7 @@ from typing import Any
 from langchain.agents.middleware import after_agent, wrap_tool_call, types, before_agent
 from sqlalchemy.orm import Session
 
+from rag.question_rag_pgvector import save_agent_trace_to_pgvector
 from entity import MyState
 from entity.agent_trace import AgentTrace, ResponseStatus
 from database import engine
@@ -109,32 +110,33 @@ async def log_response_to_database(state:types.StateT, runtime) -> None:
     
     # 7. 异步创建记录（不阻塞主流程）
     async def save_trace():
-        with Session(engine) as db_session:
-            trace = AgentTrace(
-                session_id=session_id,
-                turn_number=turn_number,
-                last_message_count=len(messages),
-                user_query=user_query,
-                query_embedding=None,
-                full_trace=serialized_trace,
-                final_answer=final_answer,
-                tool_names=list(tool_names_set),
-                token_usage={
-                    "input": total_input_tokens, 
-                    "output": total_output_tokens,
-                    "total": total_input_tokens + total_output_tokens
-                },
-                execution_duration=execution_duration,
-                metadata_={
-                    "agent_runtime": str(runtime),
-                    "model": messages[-1].response_metadata.get('model_name') if messages and hasattr(messages[-1], 'response_metadata') else "unknown"
-                },
-                status=ResponseStatus.SUCCESS,
-                fts_vector=None
-            )
-            db_session.add(trace)
-            db_session.commit()
+        trace = AgentTrace(
+            session_id=session_id,
+            turn_number=turn_number,
+            last_message_count=len(messages),
+            user_query=user_query,
+            query_embedding=None,
+            full_trace=serialized_trace,
+            final_answer=final_answer,
+            tool_names=list(tool_names_set),
+            token_usage={
+                "input": total_input_tokens, 
+                "output": total_output_tokens,
+                "total": total_input_tokens + total_output_tokens
+            },
+            execution_duration=execution_duration,
+            metadata_={
+                "agent_runtime": str(runtime),
+                "model": messages[-1].response_metadata.get('model_name') if messages and hasattr(messages[-1], 'response_metadata') else "unknown"
+            },
+            status=ResponseStatus.SUCCESS,
+            fts_vector=None
+        )
+        try:
+            save_agent_trace_to_pgvector(trace)
             print(f"✅ 链路已追加: Session={session_id[:8]}..., Turn={turn_number}, ID={trace.id}")
+        except Exception as e:
+            print(f"❌ 链路追加失败: {e}")
     
     # 异步执行，不等待结果
     asyncio.create_task(save_trace())

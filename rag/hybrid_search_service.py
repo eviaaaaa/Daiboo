@@ -33,7 +33,7 @@ class HybridSearchService:
             self._reranker = get_reranker()
         return self._reranker
 
-    def search(self, model_class, query: str, top_k: int = 5, use_rerank: bool = True):
+    def search(self, model_class, query: str, top_k: int = 5, use_rerank: bool = True, **filters):
         """
         通用的混合检索函数 (支持重排序)
         :param model_class: SQLAlchemy 模型类 (需继承 SearchableMixin)
@@ -81,7 +81,12 @@ class HybridSearchService:
         vector_results = []
         if embedding_field_name:
             embedding_column = getattr(model_class, embedding_field_name)
-            vector_stmt = select(model_class).order_by(
+            vector_stmt = select(model_class)
+            for field_name, field_value in filters.items():
+                if field_value is None or not hasattr(model_class, field_name):
+                    continue
+                vector_stmt = vector_stmt.filter(getattr(model_class, field_name) == field_value)
+            vector_stmt = vector_stmt.order_by(
                 embedding_column.cosine_distance(query_embedding)
             ).limit(candidate_k)
             vector_results = self.session.scalars(vector_stmt).all()
@@ -92,7 +97,12 @@ class HybridSearchService:
             # 假设模型都有 fts_vector 字段
             kw_stmt = select(model_class).filter(
                 model_class.fts_vector.op('@@')(func.to_tsquery('simple', ts_query_str))
-            ).order_by(
+            )
+            for field_name, field_value in filters.items():
+                if field_value is None or not hasattr(model_class, field_name):
+                    continue
+                kw_stmt = kw_stmt.filter(getattr(model_class, field_name) == field_value)
+            kw_stmt = kw_stmt.order_by(
                 desc(func.ts_rank(model_class.fts_vector, func.to_tsquery('simple', ts_query_str)))
             ).limit(candidate_k)
             
