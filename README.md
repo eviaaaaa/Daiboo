@@ -1,21 +1,21 @@
 # NexusSurf
 
-智能浏览器自动化代理系统，基于 LLM + Playwright MCP 执行网页操作、上下文压缩和知识检索。
+面向复杂网页任务的智能浏览器代理框架，基于 LLM + Playwright MCP 执行浏览器操作，并结合上下文压缩、人工审批、文档检索与任务经验复用能力。
 
 ## 项目简介
 
-NexusSurf 通过 **@playwright/mcp** + LangChain/LangGraph 组合，实现可交互的 Web 自动化 Agent。浏览器操作通过 MCP (Model Context Protocol) 以 snapshot-ref 模式驱动，使用持久会话保持跨工具调用的页面状态。
+NexusSurf 通过 **@playwright/mcp** + LangChain/LangGraph 组合，实现可交互的 Web Agent。它不是只执行固定脚本的浏览器自动化工具，而是把浏览器操作、视觉分析、终端读写、文档检索和经验检索放入统一的 Agent 工具链中，由模型按任务目标动态编排。浏览器操作通过 MCP (Model Context Protocol) 以 snapshot-ref 模式驱动，并使用持久会话保持跨工具调用的页面状态。
 
-- 支持自然语言驱动浏览器操作（基于 Playwright MCP 工具集）。
-- 支持文档上传并进入 RAG 检索链路。
+- 支持自然语言驱动浏览器与辅助工具协同执行。
+- 支持文档上传索引、文档检索和任务经验复用。
 - 支持 CLI 模式和 FastAPI + 前端模式。
 
 ## 核心能力
 
 - 浏览器自动化：通过 @playwright/mcp 连接 CDP 端点，提供页面导航、元素快照交互、信息提取等能力。
-- 模型推理编排：工具调用、多轮会话、可中断审批（HITL 中间件）。
+- 模型推理编排：统一调度浏览器工具、视觉分析、终端工具与检索工具，支持多轮会话和可中断审批（HITL 中间件）。
 - 上下文管理：长上下文压缩（旧消息摘要 + 字符硬阈值双触发）、归档和重放辅助。
-- 数据存储与检索：PostgreSQL + PGVector。
+- 检索与记忆：基于 PostgreSQL + PGVector 的文档检索与任务经验沉淀。
 
 ## 运行前准备
 

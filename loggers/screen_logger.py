@@ -11,6 +11,7 @@ from entity.agent_trace import AgentTrace, ResponseStatus
 from database import engine
 from utils.mcp_client import is_mcp_browser_tool
 from utils.qwen_model import normalize_content
+from utils.trace_sanitizer import sanitize_trace
 
 
 
@@ -110,13 +111,15 @@ async def log_response_to_database(state:types.StateT, runtime) -> None:
     
     # 7. 异步创建记录（不阻塞主流程）
     async def save_trace():
+        # ── 落库前裁剪：移除 base64 图片、截断超长 tool 输出 ──
+        cleaned_trace = sanitize_trace(serialized_trace)
         trace = AgentTrace(
             session_id=session_id,
             turn_number=turn_number,
             last_message_count=len(messages),
             user_query=user_query,
             query_embedding=None,
-            full_trace=serialized_trace,
+            full_trace=cleaned_trace,
             final_answer=final_answer,
             tool_names=list(tool_names_set),
             token_usage={
