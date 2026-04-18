@@ -3,13 +3,11 @@
 
 覆盖:
 - 旧 ToolMessage 压缩 (只保留最近 1 条完整)
-- 单消息字符硬阈值 OR token 阈值
+- 单消息 token 阈值
 - tool_call_id / name 保留
-- 总上下文字符阈值 OR token 阈值触发归档
+- 总上下文 token 阈值触发归档
 """
 import sys
-import os
-import tempfile
 from pathlib import Path
 
 # 添加项目根目录到 Python 路径
@@ -29,20 +27,37 @@ from context.context_manager import ContextManagerMiddleware
 
 def _make_middleware(**overrides) -> ContextManagerMiddleware:
     """创建用于测试的 middleware，使用临时目录和小阈值便于触发"""
+    test_store = project_root / "storage"
+    test_store.mkdir(exist_ok=True)
     defaults = dict(
         model=None,
-        file_store_path=tempfile.mkdtemp(),
+        file_store_path=str(test_store),
         max_token_ratio=0.8,
         single_msg_ratio=0.8,
         token_counter=count_tokens_approximately,
         recent_tool_messages_to_keep=1,
         tool_preview_chars=200,
         short_content_chars=1000,
-        single_msg_max_chars=5000,       # 小阈值方便测试
-        max_total_chars=10000,           # 小阈值方便测试
     )
     defaults.update(overrides)
     return ContextManagerMiddleware(**defaults)
+
+
+class _ModelWithContext:
+    """最小模型桩，只提供 ContextManagerMiddleware 需要的 profile。"""
+
+    def __init__(self, max_input_tokens: int = 100):
+        self.profile = {"max_input_tokens": max_input_tokens}
+
+
+def _count_content_chars(messages) -> int:
+    """测试用 token_counter: 1 字符按 1 token 计，便于精确触发阈值。"""
+    return sum(len(str(getattr(msg, "content", ""))) for msg in messages)
+
+
+def _count_ten_tokens_per_message(messages) -> int:
+    """测试用 token_counter: 每条消息固定 10 token。"""
+    return len(list(messages)) * 10
 
 
 def _long_text(n: int) -> str:
@@ -155,39 +170,18 @@ def test_tool_call_id_and_name_preserved():
 
 
 # ---------------------------------------------------------------------------
-# 测试 2: 单消息字符硬阈值
+# 测试 2: 单消息 token 阈值
 # ---------------------------------------------------------------------------
 
-def test_single_msg_char_limit_triggers_offload():
-    """仅字符超限 (token 未超限) 时也应触发单消息卸载"""
-    # single_msg_max_chars=5000, single_msg_limit 基于 128000*0.8=102400
-    # 所以 6000 字符 -> 3000 estimated tokens < 102400 -> token 不超限
-    # 但 6000 > 5000 -> 字符超限
-    mw = _make_middleware(single_msg_max_chars=5000)
-    content = _long_text(6000)
-
-    messages = [
-        SystemMessage(content="system"),
-        HumanMessage(content=content, id="h1"),
-    ]
-
-    result = _run(mw, messages)
-    assert result is not None, "字符超限应触发卸载"
-
-    h1 = next(m for m in result if isinstance(m, HumanMessage))
-    assert "已保存至" in h1.content, "应包含文件路径"
-    assert "字符超限" in h1.content, "应标明字符超限触发"
-
-    print("PASS: test_single_msg_char_limit_triggers_offload")
-
-
 def test_single_msg_token_limit_triggers_offload():
-    """仅 token 超限时也应触发单消息卸载"""
-    # single_msg_limit = 128000*0.8 = 102400
-    # 需要 content_len // 2 > 102400 -> content_len > 204800
-    # 同时 single_msg_max_chars 设大到不触发
-    mw = _make_middleware(single_msg_max_chars=999999)
-    content = _long_text(210000)  # 210000 // 2 = 105000 > 102400
+    """单条消息 token 超限时应触发卸载"""
+    mw = _make_middleware(
+        model=_ModelWithContext(max_input_tokens=10000),
+        max_token_ratio=1.0,      # 上下文预算 10000 tokens，避免后续归档干扰
+        single_msg_ratio=0.0025,  # 单消息预算 25 tokens
+        token_counter=_count_content_chars,
+    )
+    content = _long_text(30)
 
     messages = [
         SystemMessage(content="system"),
@@ -206,8 +200,13 @@ def test_single_msg_token_limit_triggers_offload():
 
 def test_toolmsg_offload_preserves_name():
     """单消息卸载 ToolMessage 时 name 字段应保留"""
-    mw = _make_middleware(single_msg_max_chars=5000)
-    content = _long_text(6000)
+    mw = _make_middleware(
+        model=_ModelWithContext(max_input_tokens=10000),
+        max_token_ratio=1.0,
+        single_msg_ratio=0.0025,
+        token_counter=_count_content_chars,
+    )
+    content = _long_text(30)
 
     messages = [
         SystemMessage(content="system"),
@@ -228,30 +227,29 @@ def test_toolmsg_offload_preserves_name():
 
 
 # ---------------------------------------------------------------------------
-# 测试 3: 总上下文字符阈值触发归档
+# 测试 3: 总上下文 token 阈值触发归档
 # ---------------------------------------------------------------------------
 
-def test_total_chars_triggers_archive():
-    """总字符超限触发归档 (即使 token 未超限)"""
-    # max_total_chars=10000, 每条消息 2500 字符 * 5 条 = 12500 > 10000
-    # 但 token 估算 12500 / 4 ≈ 3125 远 < max_context_tokens
+def test_total_tokens_triggers_archive():
+    """总 token 超限触发归档"""
     mw = _make_middleware(
-        max_total_chars=10000,
-        single_msg_max_chars=99999,  # 不让单消息卸载干扰
+        model=_ModelWithContext(max_input_tokens=100),
+        max_token_ratio=0.3,  # 上下文预算 30 tokens
+        single_msg_ratio=1.0, # 单消息预算 30 tokens，不让单消息卸载干扰
+        token_counter=_count_ten_tokens_per_message,
     )
 
-    msg_text = _long_text(2500)
     messages = [
         SystemMessage(content="sys"),
-        HumanMessage(content=msg_text, id="h1"),
-        AIMessage(content=msg_text, id="a1"),
-        HumanMessage(content=msg_text, id="h2"),
-        AIMessage(content=msg_text, id="a2"),
+        HumanMessage(content="q1", id="h1"),
+        AIMessage(content="a1", id="a1"),
+        HumanMessage(content="q2", id="h2"),
+        AIMessage(content="a2", id="a2"),
         HumanMessage(content="latest question", id="h3"),
     ]
 
     result = _run(mw, messages)
-    assert result is not None, "总字符超限应触发归档"
+    assert result is not None, "总 token 超限应触发归档"
 
     # 最近的消息应保留
     has_latest = any("latest question" in str(m.content) for m in result)
@@ -261,7 +259,7 @@ def test_total_chars_triggers_archive():
     has_archive = any("[系统]" in str(m.content) for m in result)
     assert has_archive, "应包含归档通知"
 
-    print("PASS: test_total_chars_triggers_archive")
+    print("PASS: test_total_tokens_triggers_archive")
 
 
 # ---------------------------------------------------------------------------
@@ -291,16 +289,17 @@ def test_no_compression_small_messages():
 def test_message_order_after_compression():
     """压缩后消息顺序: SystemMessage -> (归档通知嵌入 HumanMessage) -> 后续消息"""
     mw = _make_middleware(
-        max_total_chars=8000,
-        single_msg_max_chars=99999,
+        model=_ModelWithContext(max_input_tokens=100),
+        max_token_ratio=0.4,
+        single_msg_ratio=1.0,
+        token_counter=_count_ten_tokens_per_message,
         short_content_chars=100,
     )
 
-    long = _long_text(5000)
     messages = [
         SystemMessage(content="system"),
-        HumanMessage(content=long, id="h1"),
-        AIMessage(content=long, id="a1"),
+        HumanMessage(content="q1", id="h1"),
+        AIMessage(content="a1", id="a1"),
         HumanMessage(content="final q", id="h2"),
         AIMessage(content="final a", id="a2"),
     ]
@@ -328,10 +327,9 @@ def main():
         test_old_tool_messages_compressed_recent_kept,
         test_short_tool_messages_not_compressed,
         test_tool_call_id_and_name_preserved,
-        test_single_msg_char_limit_triggers_offload,
         test_single_msg_token_limit_triggers_offload,
         test_toolmsg_offload_preserves_name,
-        test_total_chars_triggers_archive,
+        test_total_tokens_triggers_archive,
         test_no_compression_small_messages,
         test_message_order_after_compression,
     ]

@@ -7,6 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js"></script>
     <style>
         /* Custom scrollbar for chat */
         ::-webkit-scrollbar {
@@ -137,7 +138,7 @@
     </div>
 
     <script>
-        const { createApp, ref, onMounted } = Vue;
+        const { createApp, ref } = Vue;
 
         createApp({
             setup() {
@@ -153,8 +154,14 @@
                 const threadId = ref("session_" + Date.now());
                 const selectedFileName = ref('');
 
+                const asIndentedCodeBlock = (text) => {
+                    const normalized = String(text || '').replace(/\r\n/g, '\n');
+                    return normalized.split('\n').map(line => `    ${line}`).join('\n');
+                };
+
                 const renderMarkdown = (text) => {
-                    return marked.parse(text || '');
+                    const rendered = marked.parse(text || '');
+                    return DOMPurify.sanitize(rendered);
                 };
 
                 const handleFileSelect = (event) => {
@@ -202,15 +209,15 @@
                                         chatHistory.value[agentMsgIndex].content = agentResponse;
                                     } else if (data.type === 'tool') {
                                         // Tool execution
-                                        agentResponse += "<div class='my-4 p-2 bg-blue-50 rounded border border-blue-100'><details><summary class='cursor-pointer text-blue-600 text-xs font-semibold'>🛠️ Tool Execution (Click to expand)</summary>\n\n```python\n" + data.content + "\n```\n\n</details></div>\n\n";
+                                        agentResponse += "### Tool Execution\n\n" + asIndentedCodeBlock(data.content) + "\n\n";
                                         chatHistory.value[agentMsgIndex].content = agentResponse;
                                     } else if (data.type === 'log') {
                                         // Other logs
-                                        agentResponse += "<div class='my-2'><details><summary class='cursor-pointer text-gray-400 text-xs'>Thinking Process (Click to expand)</summary>\n\n```python\n" + data.content + "\n```\n\n</details></div>\n\n";
+                                        agentResponse += "### Thinking Process\n\n" + asIndentedCodeBlock(data.content) + "\n\n";
                                         chatHistory.value[agentMsgIndex].content = agentResponse;
                                     } else if (data.type === 'update') {
                                         // Legacy/Fallback
-                                        agentResponse += "```json\n" + data.content + "\n```\n\n";
+                                        agentResponse += "### Update\n\n" + asIndentedCodeBlock(data.content) + "\n\n";
                                         chatHistory.value[agentMsgIndex].content = agentResponse;
                                     } else if (data.type === 'interrupt') {
                                         agentResponse += "\n\n> **⚠️ INTERRUPTED**: " + data.content;

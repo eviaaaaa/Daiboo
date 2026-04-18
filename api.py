@@ -22,6 +22,7 @@ if sys.platform == 'win32':
 from utils.my_browser import ensure_browser_running
 from utils.mcp_client import create_persistent_mcp_session
 from utils.agent_factory import create_browser_agent, get_agent_tools
+from utils.upload_paths import build_safe_upload_path
 from rag.document_rag_pgvector import save_document_to_pgvector
 
 if TYPE_CHECKING:
@@ -241,18 +242,18 @@ async def upload_document(
 
     temp_dir: Path = Path("temp_uploads")
     temp_dir.mkdir(exist_ok=True)
-    if not file.filename:
-        raise HTTPException(status_code=400, detail="File name is required")
-    file_path: Path = temp_dir / file.filename
 
     try:
+        display_name, file_path = build_safe_upload_path(temp_dir, file.filename or "")
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
         # 调用 RAG 保存函数
         await asyncio.to_thread(save_document_to_pgvector, [file_path])
 
-        return {"status": "success", "filename": file.filename, "message": "Document indexed successfully"}
+        return {"status": "success", "filename": display_name, "message": "Document indexed successfully"}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

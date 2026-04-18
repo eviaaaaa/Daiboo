@@ -16,6 +16,7 @@ __pycache__/
 
 # Testing
 .pytest_cache/
+.test-temp/
 test/vcr_cassettes/
 test.ipynb
 

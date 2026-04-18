@@ -6,6 +6,9 @@ import os
 import typing
 from dotenv import load_dotenv
 
+# 加载 .env 依赖
+load_dotenv()
+
 # ========================
 # 配置区
 # ========================
@@ -18,10 +21,6 @@ DEBUGGING_PORT = int(os.getenv("DEBUGGING_PORT", "9222"))
 
 # 用于保存浏览器子进程的全局变量
 browser_process: typing.Optional[subprocess.Popen] = None
-
-# 加载 .env 依赖
-load_dotenv()
-
 
 # ========================
 # 辅助函数
