@@ -1,4 +1,4 @@
-"""toolkit."""
+"""工具包。"""
 from tools.capture_element_context_tool import CaptureElementContextTool
 from tools.vision_analysis_tool import VLAnalysisTool
 from tools.delay_tool_call import delay_tool_call

@@ -29,7 +29,7 @@ async def log_experience(state: types.StateT, runtime) -> None:
     
     工作流程：
     1. 直接将 state 传递给 ExperienceSummarizer
-    2. Summarizer 从 state 中提取 session_id 和 turn_number
+    2. 总结器从 state 中提取 session_id 和 turn_number
     3. 异步进行经验提炼，不阻塞主流程
     
     注意：

@@ -1,7 +1,7 @@
 """
 测试 Context Manager 压缩策略
 
-覆盖:
+覆盖范围：
 - 旧 ToolMessage 压缩 (只保留最近 1 条完整)
 - 单消息 token 阈值
 - tool_call_id / name 保留
@@ -22,11 +22,11 @@ from context.context_manager import ContextManagerMiddleware
 
 
 # ---------------------------------------------------------------------------
-# helpers
+# 辅助函数
 # ---------------------------------------------------------------------------
 
 def _make_middleware(**overrides) -> ContextManagerMiddleware:
-    """创建用于测试的 middleware，使用临时目录和小阈值便于触发"""
+    """创建用于测试的中间件，使用临时目录和小阈值便于触发"""
     test_store = project_root / "storage"
     test_store.mkdir(exist_ok=True)
     defaults = dict(
@@ -62,12 +62,12 @@ def _count_ten_tokens_per_message(messages) -> int:
 
 def _long_text(n: int) -> str:
     """生成 n 个字符的填充文本"""
-    base = "abcdefghij"  # 10 chars
+    base = "abcdefghij"  # 10 个字符
     return (base * (n // 10 + 1))[:n]
 
 
 def _run(mw: ContextManagerMiddleware, messages: list) -> list | None:
-    """运行 before_model 并返回处理后的消息列表 (去除 RemoveMessage)"""
+    """运行 before_model 并返回处理后的消息列表（去除 RemoveMessage）"""
     result = mw.before_model({"messages": messages}, None)
     if result is None:
         return None
@@ -131,7 +131,7 @@ def test_short_tool_messages_not_compressed():
     ]
 
     result = _run(mw, messages)
-    # 短消息不应被压缩，且总量不超限 -> 可能返回 None
+    # 短消息不应被压缩，且总量不超限，可能返回 None
     if result is None:
         # 没有任何修改，符合预期
         print("PASS: test_short_tool_messages_not_compressed (no changes)")
@@ -319,7 +319,7 @@ def test_message_order_after_compression():
 
 
 # ---------------------------------------------------------------------------
-# main
+# 主入口
 # ---------------------------------------------------------------------------
 
 def main():

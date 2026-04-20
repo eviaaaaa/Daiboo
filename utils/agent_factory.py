@@ -32,7 +32,7 @@ _agent_cache: dict[str, "CompiledStateGraph"] = {}
 def get_agent_tools(mcp_tools: Any, screenshot_helper: Any = None) -> list[Any]:
     """获取工具列表
 
-    Args:
+    参数：
         mcp_tools: MCP 浏览器工具列表
         screenshot_helper: ScreenshotHelper 实例，供 CaptureElementContextTool 使用
     """
@@ -55,16 +55,16 @@ async def create_browser_agent(
     """
     创建并配置浏览器自动化 Agent（单例模式）
 
-    Args:
+    参数：
         mcp_tools: MCP 浏览器工具列表
         screenshot_helper: ScreenshotHelper 实例
         model_name: 使用的模型名称
         enable_thinking: 是否启用思考模式
     """
-    # 创建缓存 key，基于模型参数
+    # 创建缓存键，基于模型参数
     cache_key = f"{model_name}_{enable_thinking}"
 
-    # 如果已缓存，直接返回（复用已编译的 agent）
+    # 如果已缓存，直接返回（复用已编译的 Agent）
     if cache_key in _agent_cache:
         return _agent_cache[cache_key]
 
@@ -84,8 +84,8 @@ async def create_browser_agent(
     # 初始化 HITL 中间件
     hitl_middleware = HumanInTheLoopMiddleware(
         interrupt_on={
-            "terminal_write": True,  # 拦截写操作，允许 Approve/Edit/Reject
-            "terminal_read": True    # 拦截读操作，允许 Approve/Edit/Reject
+            "terminal_write": True,  # 拦截写操作，允许批准/编辑/拒绝
+            "terminal_read": True    # 拦截读操作，允许批准/编辑/拒绝
         }
     )
 
@@ -115,7 +115,7 @@ async def create_browser_agent(
         if isinstance(bound, ToolNode):
             bound._handle_tool_errors = True
 
-    # 缓存已编译的 agent
+    # 缓存已编译的 Agent
     _agent_cache[cache_key] = browser_agent
 
     return browser_agent

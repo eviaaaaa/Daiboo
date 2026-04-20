@@ -37,7 +37,7 @@ async def create_persistent_mcp_session(cdp_endpoint: str = "http://127.0.0.1:92
     用法：
         async with create_persistent_mcp_session() as mcp_tools:
             agent = await create_browser_agent(mcp_tools)
-            # ... 使用 agent ...
+            # ... 使用 Agent ...
         # 退出后 MCP subprocess 自动关闭
     """
     connection = _mcp_connection(cdp_endpoint)

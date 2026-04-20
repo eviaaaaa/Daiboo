@@ -4,7 +4,7 @@ trace_sanitizer.py
 多模态图文数据智能裁剪截断策略
 
 在 AgentTrace 落库前，对 full_trace 中每条消息的 content 进行清洗：
-  1. Base64 图片检测 & 替换 —— 防止大体积二进制数据污染 JSON 字段
+  1. Base64 图片检测和替换 —— 防止大体积二进制数据污染 JSON 字段
   2. 超长 Tool 返回内容截断 —— 防止网页 HTML/截图文本撑爆磁盘
   3. 嵌套 list[dict] 多模态结构展平 —— 保证统一的字符串输出
 
@@ -41,11 +41,11 @@ def sanitize_trace(serialized_trace: list[dict]) -> list[dict]:
     """
     对完整链路列表进行裁剪，返回新的 list（不修改原始对象）。
 
-    Args:
+    参数：
         serialized_trace: screen_logger 中已初步序列化的消息列表，
                           每条格式为 {"role": str, "content": str|list, ...}
 
-    Returns:
+    返回：
         清洗后的消息列表，可直接作为 AgentTrace.full_trace 入库。
     """
     cleaned = []
@@ -62,10 +62,10 @@ def _sanitize_message(msg: dict) -> dict:
     role = msg.get("role", "")
     content = msg.get("content", "")
 
-    # Step 1: 展平多模态 list[dict] 结构
+    # 步骤 1：展平多模态 list[dict] 结构
     content = _flatten_multimodal(content)
 
-    # Step 2: 根据角色选择截断规则
+    # 步骤 2：根据角色选择截断规则
     if role == "tool":
         content = _sanitize_tool_content(content)
     else:
@@ -73,7 +73,7 @@ def _sanitize_message(msg: dict) -> dict:
 
     msg["content"] = content
 
-    # Step 3: 清洗 tool_calls 参数中的 base64（极少见但存在）
+    # 步骤 3：清洗 tool_calls 参数中的 base64（极少见但存在）
     if "tool_calls" in msg and isinstance(msg["tool_calls"], list):
         msg["tool_calls"] = _sanitize_tool_calls(msg["tool_calls"])
 

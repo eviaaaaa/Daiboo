@@ -6,7 +6,7 @@ class QwenEmbeddings(Embeddings):
         self.model = model
 
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
-        # 针对 embeddings 设计截断（最大token 2,048）
+        # 针对 embeddings 设计截断（最大 token 2,048）
         # 由于没有 tokenizer，使用字符长度估算。通常 1 token ≈ 1.5-2 字符。
         # 保守起见，截断到 4000 字符。
         truncated_texts = [text[:4000] for text in texts]

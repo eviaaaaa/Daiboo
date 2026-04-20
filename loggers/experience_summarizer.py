@@ -28,10 +28,10 @@ class ExperienceSummarizer:
         从 graph 的 state 中提取信息并异步总结经验（便捷方法）
         不依赖数据库查询，直接从 state 解析所有需要的数据，实现真正的异步并行
         
-        Args:
+        参数：
             state: LangGraph 的 state 对象
         
-        Returns:
+        返回：
             成功时返回 Experience ID，失败或跳过时返回 None
         """
         try:
@@ -156,10 +156,10 @@ class ExperienceSummarizer:
         """
         解析 LLM 返回的 JSON 响应
         
-        Args:
+        参数：
             response_text: LLM 的原始响应
         
-        Returns:
+        返回：
             解析后的字典，失败时返回 None
         """
         try:

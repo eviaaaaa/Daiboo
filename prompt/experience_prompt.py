@@ -96,11 +96,11 @@ def format_trace_for_summary(full_trace: list, max_length: int = 15000) -> str:
     """
     将完整的执行记录格式化为适合 LLM 分析的摘要
     
-    Args:
+    参数：
         full_trace: 序列化的消息列表
         max_length: 最大字符长度
     
-    Returns:
+    返回：
         格式化的摘要文本
     """
     summary_parts = []

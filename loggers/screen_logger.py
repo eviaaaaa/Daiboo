@@ -61,7 +61,7 @@ async def log_response_to_database(state:types.StateT, runtime) -> None:
         print("⚠️ 无法获取 session_id，跳过链路记录")
         return
     
-    # 2. 提取 User Query（最后一条 HumanMessage）
+    # 2. 提取用户查询（最后一条 HumanMessage）
     user_query = ""
     for msg in reversed(messages):
         if msg.type == 'human':

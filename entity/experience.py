@@ -22,28 +22,28 @@ class Experience(Base, SearchableMixin):
     task_type: Mapped[str] = mapped_column(
         String(50), 
         nullable=False,
-        comment="Task category: login, search, form, navigation, data_extraction, other"
+        comment="任务分类：login、search、form、navigation、data_extraction、other"
     )
     
     # 任务描述 (用户原始意图)
     task_description: Mapped[str] = mapped_column(
         Text, 
         nullable=False,
-        comment="Original user query or task intent"    
+        comment="用户原始查询或任务意图"    
     )
     
     # 经验内容 (Markdown 格式)
     experience_content: Mapped[str] = mapped_column(
         Text, 
         nullable=False,
-        comment="Structured experience in Markdown format"
+        comment="Markdown 格式的结构化经验"
     )
     
     # 经验向量 (用于语义检索)
     experience_embedding: Mapped[Optional[List[float]]] = mapped_column(
         Vector(1536), 
         nullable=True,
-        comment="Embedding of experience_content for semantic search"
+        comment="experience_content 的 Embedding，用于语义检索"
     )
 
     @property
@@ -62,7 +62,7 @@ class Experience(Base, SearchableMixin):
     success: Mapped[bool] = mapped_column(
         Boolean, 
         default=True,
-        comment="Whether the task was completed successfully"
+        comment="任务是否成功完成"
     )
     
     # 使用的工具列表
@@ -70,14 +70,14 @@ class Experience(Base, SearchableMixin):
         JSON, 
         default_factory=list,
         server_default='[]',
-        comment="List of tools used in this task"
+        comment="本次任务使用的工具列表"
     )
     
     # 网站域名 (便于按网站过滤经验)
     website_domain: Mapped[Optional[str]] = mapped_column(
         String(200), 
         nullable=True,
-        comment="Domain of the website (e.g., 'github.com')"
+        comment="网站域名（例如 'github.com'）"
     )
     
     # --- 关联审计日志 (可选) ---
@@ -86,7 +86,7 @@ class Experience(Base, SearchableMixin):
     trace_id: Mapped[Optional[int]] = mapped_column(
         Integer, 
         nullable=True,
-        comment="Reference to AgentTrace for audit purposes"
+        comment="用于审计回溯的 AgentTrace 引用"
     )
     
     # 会话 ID (用于追踪同一会话产生的多条经验)
@@ -94,7 +94,7 @@ class Experience(Base, SearchableMixin):
         String(100), 
         nullable=True,
         index=True,
-        comment="Session identifier for grouping experiences"
+        comment="用于归组经验的会话标识"
     )
     
     # 创建时间

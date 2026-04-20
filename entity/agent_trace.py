@@ -1,4 +1,4 @@
-# models.py
+# 模型定义
 import enum
 from datetime import datetime
 from typing import Dict, Any, Optional, List
@@ -48,7 +48,7 @@ class AgentTrace(Base, SearchableMixin):
     full_trace: Mapped[List[Dict[str, Any]]] = mapped_column(
         JSON,
         nullable=False,
-        comment="Serialized LangChain messages list"
+        comment="序列化后的 LangChain 消息列表"
     )
     
     # 向量字段 (建议使用 text-embedding-3-small 或 text-embedding-3-large)
@@ -57,7 +57,7 @@ class AgentTrace(Base, SearchableMixin):
         Vector(1536), 
         nullable=True,
         default=None,
-        comment="Embedding of the user_query"
+        comment="user_query 的 Embedding"
     )
     
     # 别名，用于统一接口 (HybridSearchService 默认使用 .embedding)
@@ -78,7 +78,7 @@ class AgentTrace(Base, SearchableMixin):
         JSON, 
         default_factory=list,
         server_default='[]',
-        comment="List of tool names used in this trace"
+        comment="本次链路中使用的工具名称列表"
     )
 
     # 任务执行状态
@@ -113,7 +113,7 @@ class AgentTrace(Base, SearchableMixin):
         String(100),
         nullable=True,
         index=True,
-        comment="Session identifier for grouping conversation rounds"
+        comment="用于归组对话轮次的会话标识"
     )
     
     # 对话轮次 (同一 session 内递增)
@@ -121,7 +121,7 @@ class AgentTrace(Base, SearchableMixin):
         Integer,
         default=1,
         server_default='1',
-        comment="Turn number within the session"
+        comment="session 内的轮次编号"
     )
     
     # 已记录的消息数 (用于计算增量)
@@ -129,7 +129,7 @@ class AgentTrace(Base, SearchableMixin):
         Integer,
         default=0,
         server_default='0',
-        comment="Number of messages recorded in this trace"
+        comment="本次链路中已记录的消息数量"
     )
 
     created_at: Mapped[datetime] = mapped_column(

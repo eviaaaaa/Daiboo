@@ -21,7 +21,7 @@ TOOL_CONTENT_MAX_CHARS = _mod.TOOL_CONTENT_MAX_CHARS
 # ── 辅助 ──────────────────────────────────────────────────────────────
 
 def _make_trace(*msgs):
-    """快速构造 serialized_trace 格式"""
+    """快速构造 serialized_trace 格式的数据"""
     return list(msgs)
 
 def _tool_msg(content: str) -> dict:
@@ -53,7 +53,7 @@ def test_tool_content_truncated():
     """Tool 返回超长网页内容应被截断"""
     # 使用真实感的 HTML 内容，避免纯重复字符触发 raw base64 误判
     chunk = "<div class='content'><p>这是一段网页正文内容，包含中文和 English 混合文字。</p></div>\n"
-    long_html = chunk * 200  # ~14000 chars
+    long_html = chunk * 200  # 约 14000 个字符
     trace = _make_trace(_tool_msg(long_html))
     result = sanitize_trace(trace)
     content = result[0]["content"]

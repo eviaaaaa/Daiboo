@@ -16,7 +16,7 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langgraph.graph.message import REMOVE_ALL_MESSAGES
 from langgraph.runtime import Runtime
 
-# Try to import AgentMiddleware, if not available, define a protocol or base class
+# 尝试导入 AgentMiddleware；如果不可用，则定义兼容的基础类
 try:
     from langchain.agents.middleware.types import AgentMiddleware, AgentState
 except ImportError:
@@ -63,9 +63,9 @@ class ContextManagerMiddleware(AgentMiddleware):
         short_content_chars: int = 1000,        # 短内容阈值，低于此不压缩
     ):
         """
-        初始化 Context Manager Middleware
+        初始化 Context Manager 中间件
 
-        Args:
+        参数：
             model: LangChain 模型实例，用于读取 max_input_tokens
             file_store_path: 消息存储路径
             max_token_ratio: 总上下文 token 限制比例，默认 0.8
@@ -177,10 +177,10 @@ class ContextManagerMiddleware(AgentMiddleware):
         """
         压缩旧的 ToolMessage：只完整保留最近 N 条，其余长 ToolMessage 压缩为预览
 
-        Args:
+        参数：
             messages: 消息列表
 
-        Returns: 处理后的消息列表
+        返回：处理后的消息列表
         """
         # 找出所有 ToolMessage 的索引 (从后向前)
         tool_msg_indices = []

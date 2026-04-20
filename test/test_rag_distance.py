@@ -34,11 +34,11 @@ def test_document_rag_returns_distance(temp_doc_file):
     assert len(results) > 0
     top_result = results[0]
     
-    # 验证返回的是 list of RagDocument
+    # 验证返回的是 RagDocument 列表
     assert isinstance(top_result, RagDocument), "Result should be a RagDocument object"
     
     doc = top_result
-    # distance = top_result.distance # Hybrid search doesn't return distance by default
+    # distance = top_result.distance # 混合检索默认不返回 distance
     
     print(f"[Test] Top result: Document ID={doc.id}")
     
@@ -86,7 +86,7 @@ def test_question_rag_returns_distance():
     assert len(results) > 0
     top_result = results[0]
     
-    # 验证返回的是 list of AgentTrace
+    # 验证返回的是 AgentTrace 列表
     assert isinstance(top_result, AgentTrace), "Result should be an AgentTrace object"
     
     trace = top_result

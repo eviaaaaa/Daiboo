@@ -32,13 +32,13 @@ def create_qwen_model(
     针对 DashScope 要求走 MultiModalConversation 端点但 ChatTongyi
     未识别的新模型，会在初始化后手动修正 client。
 
-    Args:
+    参数：
         model_name: 模型名称，默认 "qwen3.5-plus"
         temperature: 温度参数，默认 0.0
         request_timeout: 请求超时时间（秒），默认 3000
         **extra_kwargs: 传递给 ChatTongyi 的额外参数
 
-    Returns:
+    返回：
         配置好的 ChatTongyi 模型实例
     """
     model = tongyi.ChatTongyi(
@@ -63,10 +63,10 @@ def normalize_content(content):
     是 list[dict] 格式 (如 [{"text": "..."}])，
     而下游代码（数据库存储、JSON 解析等）期望 str。
     
-    Args:
+    参数：
         content: str 或 list[dict] 格式的消息内容
     
-    Returns:
+    返回：
         纯文本字符串
     """
     if isinstance(content, str):

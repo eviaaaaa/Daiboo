@@ -38,7 +38,7 @@ class VLAnalysisTool(BaseTool):
     
     def _initialize_model(self):
         """初始化Qwen-VL模型"""
-        # 优先使用提供的API密钥，否则从环境变量获取
+        # 优先使用提供的 API 密钥，否则从环境变量获取
         
         self._model = create_qwen_model(
             model_name=self.model_name,
@@ -54,12 +54,12 @@ class VLAnalysisTool(BaseTool):
         """
         执行图像分析
         
-        Args:
+        参数：
             image_path: 图像文件路径
             prompt: 分析提示词
             **kwargs: 额外参数
             
-        Returns:
+        返回：
             模型生成的分析结果
         """
         # 验证图像文件是否存在
@@ -81,7 +81,7 @@ class VLAnalysisTool(BaseTool):
                 # 调用模型
                 response = self._model.invoke([message])
                 
-                # 返回结果 - 确保不返回None
+                # 返回结果，确保不返回 None
                 if not response or not response.content:
                     return "无法识别验证码，模型未返回结果"
                 
@@ -126,7 +126,7 @@ class VLAnalysisTool(BaseTool):
                 # 调用模型
                 response = await self._model.ainvoke([message])
                 
-                # 返回结果 - 确保不返回None
+                # 返回结果，确保不返回 None
                 if not response or not response.content:
                     return "无法识别验证码，模型未返回结果"
                 

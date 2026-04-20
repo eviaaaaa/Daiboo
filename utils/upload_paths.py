@@ -5,7 +5,7 @@ from uuid import uuid4
 
 
 def build_safe_upload_path(upload_dir: Path, client_filename: str) -> tuple[str, Path]:
-    """Return a display name plus a server-controlled safe file path."""
+    """返回展示文件名和服务端控制的安全文件路径。"""
     raw_name = (client_filename or "").strip()
     if not raw_name:
         raise ValueError("File name is required")
