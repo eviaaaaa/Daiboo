@@ -23,7 +23,11 @@ from utils.my_browser import ensure_browser_running
 from utils.mcp_client import create_persistent_mcp_session
 from utils.agent_factory import create_browser_agent, get_agent_tools
 from utils.upload_paths import build_safe_upload_path
-from rag.document_rag_pgvector import save_document_to_pgvector
+from rag.document_rag_pgvector import (
+    debug_query_document_from_pgvector,
+    get_rag_corpus_summary,
+    save_document_to_pgvector,
+)
 
 if TYPE_CHECKING:
     from langchain_core.runnables import RunnableConfig
@@ -103,6 +107,72 @@ class UploadResponse(BaseModel):
     status: str = Field(..., description="处理状态，成功时为 `success`。")
     filename: str = Field(..., description="上传文件名。")
     message: str = Field(..., description="处理结果说明。")
+    total_parents: int = Field(0, description="本次索引生成的大块数量。")
+    total_children: int = Field(0, description="本次索引生成的小块数量。")
+
+
+class RagSearchRequest(BaseModel):
+    """RAG 调试检索请求体。"""
+
+    query: str = Field(..., min_length=1, description="用户输入的检索问题。")
+    top_k: int = Field(5, ge=1, le=10, description="每种策略返回的结果数量。")
+    use_rerank: bool = Field(True, description="是否开启重排序。")
+
+
+class ChunkConfig(BaseModel):
+    parent_size: int
+    parent_overlap: int
+    child_size: int
+    child_overlap: int
+
+
+class RagChunkResult(BaseModel):
+    id: Optional[int] = None
+    content: str
+    source_name: Optional[str] = None
+    source_path: Optional[str] = None
+    chunk_level: Optional[str] = None
+    chunk_index: Optional[int] = None
+    parent_id: Optional[int] = None
+    start_index: Optional[int] = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    content_preview: str
+    content_length: int
+
+
+class HierarchicalRagResult(BaseModel):
+    parent: RagChunkResult
+    matched_children: list[RagChunkResult]
+
+
+class RagSearchStrategies(BaseModel):
+    large_chunks: list[RagChunkResult]
+    small_chunks: list[RagChunkResult]
+    hierarchical: list[HierarchicalRagResult]
+
+
+class RagSearchResponse(BaseModel):
+    query: str
+    top_k: int
+    use_rerank: bool
+    legacy_fallback_used: bool = False
+    chunk_config: ChunkConfig
+    strategies: RagSearchStrategies
+
+
+class RagCorpusSource(BaseModel):
+    source_name: str
+    source_path: Optional[str] = None
+    parent_chunks: int
+    child_chunks: int
+    total_rows: int
+
+
+class RagCorpusSummaryResponse(BaseModel):
+    total_parent_chunks: int
+    total_child_chunks: int
+    total_legacy_rows: int
+    sources: list[RagCorpusSource]
 
 
 class ErrorResponse(BaseModel):
@@ -249,13 +319,54 @@ async def upload_document(
             shutil.copyfileobj(file.file, buffer)
 
         # 调用 RAG 保存函数
-        await asyncio.to_thread(save_document_to_pgvector, [file_path])
+        indexing_summary = await asyncio.to_thread(save_document_to_pgvector, [file_path])
 
-        return {"status": "success", "filename": display_name, "message": "Document indexed successfully"}
+        return {
+            "status": "success",
+            "filename": display_name,
+            "message": "Document indexed successfully",
+            "total_parents": indexing_summary["total_parents"],
+            "total_children": indexing_summary["total_children"],
+        }
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post(
+    "/rag/search",
+    summary="调试 RAG 检索效果",
+    description="同时返回大块检索、小块检索和层级聚合结果，便于前端对比大小块效果并查看相关 chunk。",
+    response_model=RagSearchResponse,
+    tags=["documents"],
+)
+async def debug_rag_search(request: RagSearchRequest) -> dict[str, Any]:
+    """返回 RAG 调试检索结果。"""
+
+    try:
+        return await asyncio.to_thread(
+            debug_query_document_from_pgvector,
+            request.query,
+            request.top_k,
+            request.use_rerank,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.get(
+    "/rag/summary",
+    summary="获取 RAG 语料概览",
+    description="返回当前索引库中的文档、父子块数量和旧数据数量，便于前端展示当前可测试范围。",
+    response_model=RagCorpusSummaryResponse,
+    tags=["documents"],
+)
+async def rag_corpus_summary() -> dict[str, Any]:
+    try:
+        return await asyncio.to_thread(get_rag_corpus_summary)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8801)

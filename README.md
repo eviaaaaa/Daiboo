@@ -8,6 +8,7 @@ NexusSurf 通过 **@playwright/mcp** + LangChain/LangGraph 组合，实现可交
 
 - 支持自然语言驱动浏览器与辅助工具协同执行。
 - 支持文档上传索引、文档检索和任务经验复用。
+- 前端内置 RAG 工作台，可直接查看命中的相关 chunk，并对比大块、小块、层级聚合三种检索效果。
 - 支持 CLI 模式和 FastAPI + 前端模式。
 
 ## 核心能力
@@ -91,7 +92,25 @@ python main.py
 
 - `POST /chat`：发送消息并流式返回执行结果
 - `GET /tools`：列出可用工具
-- `POST /upload`：上传文档并写入向量库
+- `POST /upload`：上传 PDF、DOC、DOCX、Markdown、TXT 等文档并写入向量库，响应里包含本次生成的 `total_parents` 和 `total_children`
+- `POST /rag/search`：调试 RAG 检索，返回大块、小块和层级聚合结果，以及相关 chunk 明细
+
+`POST /rag/search` 请求示例：
+
+```json
+{
+  "query": "合同里关于违约责任是怎么规定的？",
+  "top_k": 5,
+  "use_rerank": true
+}
+```
+
+返回结果会包含：
+
+- `chunk_config`：当前大块/小块切分参数
+- `strategies.large_chunks`：直接检索大块结果
+- `strategies.small_chunks`：直接检索小块结果
+- `strategies.hierarchical`：先命中小块，再聚合回父块，并附带相关子块
 
 ## 测试
 

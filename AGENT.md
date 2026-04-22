@@ -16,7 +16,13 @@
 
 如需求影响入口行为，必须同步核对并更新相关说明。
 
-## 3. 核心代码边界
+## 3. 运行环境前置
+
+- 在本仓库执行 Python、pytest、uvicorn、脚本前，先激活 conda 环境：`conda activate langchainenv`。
+- 若当前终端不在 conda shell，先执行 conda 初始化后的 PowerShell 会话，再激活 `langchainenv`。
+- 不要默认使用系统 Python 或 `base` 环境，除非用户明确要求。
+
+## 4. 核心代码边界
 
 - `utils/agent_factory.py`: agent 组装与中间件链。
 - `utils/mcp_client.py`: MCP 持久会话管理（`create_persistent_mcp_session`），解决每次工具调用创建新 subprocess 的问题。
@@ -28,7 +34,7 @@
 
 仅在边界明确时修改，跨模块改动需检查调用链是否一致。
 
-## 4. 强约束
+## 5. 强约束
 
 - 先读代码再改文档，文档必须映射真实实现。
 - 不把规划文档中的设计当作已实现能力。
@@ -36,13 +42,13 @@
 - 改动后不得破坏现有入口可运行性。
 - 涉及消息重写时，必须保证 Human/AI 角色严格交替。
 
-## 5. 变更同步规则
+## 6. 变更同步规则
 
 - 改接口行为：同步更新 `README.md` 的用法或接口说明。
 - 改目录结构：同步更新本文件“真实入口/核心边界”。
 - 改运行前置条件：同步更新 `README.md` 环境与排障章节。
 
-## 6. 当前仓库已知事实（2026-03-11）
+## 7. 当前仓库已知事实（2026-03-11）
 
 - 浏览器操作已迁移至 `@playwright/mcp` (snapshot-ref 模式)，通过 `utils/mcp_client.py` 管理持久 MCP 会话。
 - 已废弃并删除的工具：`fill_text_tool`、`get_all_element_tool`、`get_page_img_tool`、`playwright_mcp_tool`。
@@ -51,8 +57,9 @@
 - `docx/` 下内容主要是设计和过程文档，不等于运行时代码。
 - `loggers/screen_logger.py` 仅保留文字日志，不再持有 ScreenshotHelper / CDP 连接。
 - `ToolNode` 已全局修补 `_handle_tool_errors = True`，MCP 工具异常不会导致 Agent 直接崩溃。
+- `README.md` 当前约定的 conda 环境名是 `langchainenv`。
 
-## 7. 执行偏好
+## 8. 执行偏好
 
 - 小步修改，优先最小可验证变更。
 - 每次修改后至少做一次本地一致性检查（路径、导入、文档引用）。
