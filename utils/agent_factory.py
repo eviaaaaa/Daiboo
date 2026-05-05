@@ -12,10 +12,12 @@ from loggers.screen_logger import (
     log_response_to_database
 )
 from loggers.experience_middleware import log_experience
+from loggers.diff_middleware import make_diff_middleware
 from prompt import system_prompt
 from tools import (
     VLAnalysisTool,
     CaptureElementContextTool,
+    WebObserveTool,
     delay_tool_call,
     search_documents,
     search_task_experience
@@ -40,6 +42,7 @@ def get_agent_tools(mcp_tools: Any, screenshot_helper: Any = None) -> list[Any]:
         *mcp_tools,                                                  # MCP 浏览器工具
         CaptureElementContextTool(helper=screenshot_helper),         # 重写版
         VLAnalysisTool(),                                            # 保留
+        WebObserveTool(mcp_tools=mcp_tools),                         # 基于 simphtml 的页面观察工具
         terminal_read,                                               # 保留
         terminal_write,                                              # 保留
         search_documents,                                            # 保留
@@ -89,6 +92,10 @@ async def create_browser_agent(
         }
     )
 
+    # diff middleware：给 MCP 写动作自动附 DOM diff + 瞬时文本
+    # 必须用工厂构造，因为它要持有当前 MCP session 的工具列表（含 browser_evaluate）
+    diff_middleware = make_diff_middleware(mcp_tools)
+
     # 创建 Agent（最耗时的操作）
     browser_agent = agents.create_agent(
         system_prompt=system_prompt.system_prompt,
@@ -104,6 +111,7 @@ async def create_browser_agent(
             log_agent_response,
             log_response_to_database,  # 先记录链路
             log_experience,            # 再异步总结经验
+            diff_middleware,           # 给 MCP 写动作自动附 diff + transients
             delay_tool_call,
         ],
     )

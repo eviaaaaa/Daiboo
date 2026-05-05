@@ -88,6 +88,29 @@ python main.py
 - `new` / `reset`：新建会话
 - `exit` / `quit`：退出
 
+## 工具集
+
+Agent 在每次对话中可见的工具分两类：
+
+**MCP 浏览器原子工具**（由 `@playwright/mcp` 动态加载）：`browser_navigate` / `browser_snapshot` / `browser_click` / `browser_type` / `browser_fill_form` / `browser_press_key` / `browser_select_option` / `browser_tabs` / `browser_evaluate` / `browser_file_upload` / `browser_take_screenshot` / `browser_wait_for` 等。详细列表运行时通过 `GET /tools` 查询。
+
+**本仓库自定义工具**（在 `tools/` 下）：
+
+- `web_observe`：基于 simphtml 的 LLM-friendly 页面观察。**跨 iframe 与 Shadow DOM 内容内联**、自动剔除浮窗广告、字符预算可控（默认 35000）、表单当前值落入属性。与 `browser_snapshot` 共存，不替换。
+  - `text_only=True`：纯文本输出，最省 token，适合"快速看页面写了啥"
+  - `text_only=False`（默认）：简化 HTML 输出，保留结构便于后续 `browser_snapshot` 拿 ref 操作
+- `capture_element_context`：截取目标元素及周围上下文的截图，返回本地路径。
+- `vl_analysis_tool`：视觉模型分析图片（验证码、图表等）。
+- `terminal_read` / `terminal_write`：终端读写操作（带 HITL 审批）。
+- `search_documents` / `search_task_experience`：RAG 检索（文档 / 历史经验）。
+
+**自动加在工具结果末尾的 diff 与 transients**：所有"会改页面状态"的 MCP 浏览器工具（click/type/navigate/...）调用结束后，工具返回末尾会自动追加：
+- `[diff] DOM 变化量: N` / `[diff] 页面无明显变化`
+- `[diff] 最显著变化: <html>...</html>`
+- `[transients] [...]`：动作期间出现的瞬时文本（toast / 错误提示 / loading）
+
+由 `loggers/diff_middleware.py` 实现，省下 LLM "做动作 → 再 snapshot 验证" 的下一轮。
+
 ## API 快速说明
 
 - `POST /chat`：发送消息并流式返回执行结果
