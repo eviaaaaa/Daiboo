@@ -1,9 +1,12 @@
-"""
-测试 VLAnalysisTool 工具是否可用
-"""
+"""手工脚本：测试 VLAnalysisTool 工具是否可用。"""
 import asyncio
 import os
 from pathlib import Path
+import sys
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
+
 from dotenv import load_dotenv
 from utils import MyVcr
 from tools import VLAnalysisTool

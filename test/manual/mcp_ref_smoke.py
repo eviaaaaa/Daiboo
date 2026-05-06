@@ -1,10 +1,12 @@
-"""最小化测试：验证持久 MCP session 下 snapshot-ref 是否正常工作"""
+"""手工 smoke：验证持久 MCP session 下 snapshot-ref 是否正常工作。"""
 import asyncio
+import os
 import re
 import sys
-import os
+from pathlib import Path
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
 
 from utils.my_browser import ensure_browser_running
 from utils.mcp_client import create_persistent_mcp_session

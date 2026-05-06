@@ -1,8 +1,14 @@
+"""遗留手工脚本：旧版 Playwright agent 登录联调。"""
 import os
 
 import asyncio
 import pprint
 from typing import TYPE_CHECKING
+from pathlib import Path
+import sys
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
 
 from langchain import agents
 from langchain.messages import HumanMessage

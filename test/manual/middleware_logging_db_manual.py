@@ -1,10 +1,12 @@
-"""
-测试日志中间件功能
-测试 log_agent_start 和 log_response_to_database 中间件的组合使用
-"""
+"""手工集成脚本：验证日志中间件与数据库写入链路。"""
 import os
 import asyncio
 from typing import TYPE_CHECKING
+from pathlib import Path
+import sys
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
 
 from langchain import agents
 from langchain.messages import HumanMessage
