@@ -1,146 +1,134 @@
-from utils.qwen_model import create_qwen_model
 import base64
+import logging
 import os
 from typing import Any, Optional, Type
-from pydantic import BaseModel, Field
-from langchain_core.tools import BaseTool
-from langchain_core.messages import HumanMessage
+
 from langchain_core.callbacks import (
     AsyncCallbackManagerForToolRun,
     CallbackManagerForToolRun,
 )
+from langchain_core.messages import HumanMessage
+from langchain_core.tools import BaseTool
+from pydantic import BaseModel, Field
+
+from utils.qwen_model import create_qwen_model
+
+logger = logging.getLogger(__name__)
+
 
 class ImageAnalysisInput(BaseModel):
     """图像分析工具的输入参数"""
-    image_path: str = Field(description="要分析的图像文件的对绝路径")
+
+    image_path: str = Field(description="要分析的图像文件的绝对路径")
     prompt: str = Field(description="指导模型如何分析图像的提示词", default="详细描述这张图片的内容")
+
 
 class VLAnalysisTool(BaseTool):
     """
-    使用Qwen3-VL多模态模型分析图像的LangChain工具
+    使用 Qwen3-VL 多模态模型分析图像的 LangChain 工具。
     """
+
     name: str = "vl_analysis_tool"
     description: str = (
         "适用于详细描述图像、识别物体、分析场景、解读图表等视觉任务。"
         "输入需要一个有效的图像文件路径和分析提示词。"
     )
     args_schema: Type[BaseModel] = ImageAnalysisInput
-    
-    # 工具配置参数
+
     model_name: str = "qwen3-vl-plus"
-    
-    _model = None  # 私有模型实例
-    
+    _model = None
+
     def __init__(self, **kwargs):
-        """初始化图像分析工具"""
         super().__init__(**kwargs)
         self._initialize_model()
-    
+
     def _initialize_model(self):
-        """初始化Qwen-VL模型"""
-        # 优先使用提供的 API 密钥，否则从环境变量获取
-        
         self._model = create_qwen_model(
             model_name=self.model_name,
         )
-    
+
+    @staticmethod
+    def _build_model_prompt(prompt: str) -> str:
+        return f"请根据以下图片内容，{prompt}"
+
+    @staticmethod
+    def _extract_text_result(response: Any) -> str:
+        if not response or not response.content:
+            return "无法识别验证码，模型未返回结果"
+
+        result = response.content
+        if isinstance(result, list) and len(result) > 0:
+            if isinstance(result[0], dict) and "text" in result[0]:
+                result = result[0]["text"]
+            else:
+                result = str(result[0])
+
+        return str(result) if result else "无法识别验证码，请手动输入"
+
     def _run(
         self,
         image_path: str,
         prompt: str = "详细描述这张图片的内容",
         run_manager: Optional[CallbackManagerForToolRun] = None,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> str:
-        """
-        执行图像分析
-        
-        参数：
-            image_path: 图像文件路径
-            prompt: 分析提示词
-            **kwargs: 额外参数
-            
-        返回：
-            模型生成的分析结果
-        """
-        # 验证图像文件是否存在
         if not os.path.exists(image_path):
             return f"错误：图像文件不存在于路径 {image_path}。请提供有效的图像路径。"
-        
+
         try:
+            logger.debug(
+                "vl_analysis_tool sync call: image_path=%s prompt=%r",
+                image_path,
+                prompt,
+            )
             with open(image_path, "rb") as img:
-                imgbase64 = base64.b64encode(img.read()).decode('utf-8')  # 修复：需要调用 .read()
-                # imgBlock:ImageContentBlock = create_image_block(base64=imgbase64,mime_type="image/png")
-                # 构建多模态消息
-                message = HumanMessage(
-                    content=f"请根据以下图片内容，{prompt}",
-                    content_blocks=[
-                        {"type":"image","image":f"data:image/png;base64,{imgbase64}"}
-                    ]
+                imgbase64 = base64.b64encode(img.read()).decode("utf-8")
+                model_prompt = self._build_model_prompt(prompt)
+                logger.debug(
+                    "vl_analysis_tool sync model prompt preview: %r",
+                    model_prompt[:500],
                 )
-                
-                # 调用模型
+                message = HumanMessage(
+                    content=model_prompt,
+                    content_blocks=[
+                        {"type": "image", "image": f"data:image/png;base64,{imgbase64}"}
+                    ],
+                )
                 response = self._model.invoke([message])
-                
-                # 返回结果，确保不返回 None
-                if not response or not response.content:
-                    return "无法识别验证码，模型未返回结果"
-                
-                result = response.content
-                
-                # 处理返回结果格式（可能是列表或字符串）
-                if isinstance(result, list) and len(result) > 0:
-                    if isinstance(result[0], dict) and 'text' in result[0]:
-                        result = result[0]['text']
-                    else:
-                        result = str(result[0])
-                
-                return str(result) if result else "无法识别验证码，请手动输入"
+                return self._extract_text_result(response)
         except Exception as e:
             return f"分析图像时出错: {str(e)}"
-    
+
     async def _arun(
         self,
         image_path: str,
         prompt: str = "详细描述这张图片的内容",
         run_manager: Optional[AsyncCallbackManagerForToolRun] = None,
-
-        **kwargs: Any
+        **kwargs: Any,
     ) -> str:
-        """异步执行图像分析"""
-        # 验证图像文件是否存在
         if not os.path.exists(image_path):
             return f"错误：图像文件不存在于路径 {image_path}。请提供有效的图像路径。"
-        
+
         try:
+            logger.debug(
+                "vl_analysis_tool async call: image_path=%s prompt=%r",
+                image_path,
+                prompt,
+            )
             with open(image_path, "rb") as img:
-                imgbase64 = base64.b64encode(img.read()).decode('utf-8')  # 修复：需要调用 .read()
-                # imgBlock:ImageContentBlock = create_image_block(base64=imgbase64,mime_type="image/png")
-                # 构建多模态消息
-                message = HumanMessage(
-                    content=f"请根据以下图片内容，{prompt}",
-                    content_blocks=[
-                        {"type":"image","image":f"data:image/png;base64,{imgbase64}"}
-                    ]
+                imgbase64 = base64.b64encode(img.read()).decode("utf-8")
+                model_prompt = self._build_model_prompt(prompt)
+                logger.debug(
+                    "vl_analysis_tool async model prompt preview: %r",
+                    model_prompt[:500],
                 )
-                
-                # 调用模型
+                message = HumanMessage(
+                    content=model_prompt,
+                    content_blocks=[
+                        {"type": "image", "image": f"data:image/png;base64,{imgbase64}"}
+                    ],
+                )
                 response = await self._model.ainvoke([message])
-                
-                # 返回结果，确保不返回 None
-                if not response or not response.content:
-                    return "无法识别验证码，模型未返回结果"
-                
-                result = response.content
-                
-                # 处理返回结果格式（可能是列表或字符串）
-                if isinstance(result, list) and len(result) > 0:
-                    if isinstance(result[0], dict) and 'text' in result[0]:
-                        result = result[0]['text']
-                    else:
-                        result = str(result[0])
-                
-                return str(result) if result else "无法识别验证码，请手动输入"
-            
+                return self._extract_text_result(response)
         except Exception as e:
             return f"分析图像时出错: {str(e)}"
-

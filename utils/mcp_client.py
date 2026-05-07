@@ -23,7 +23,12 @@ def is_mcp_browser_tool(tool_name: str) -> bool:
 def _mcp_connection(cdp_endpoint: str = "http://127.0.0.1:9222"):
     return {
         "command": "npx.cmd",  # Windows 用 npx.cmd
-        "args": ["@playwright/mcp@latest", "--cdp-endpoint", cdp_endpoint],
+        "args": [
+            "@playwright/mcp@latest",
+            "--cdp-endpoint",
+            cdp_endpoint,
+            "--caps=vision",
+        ],
         "transport": "stdio",
     }
 

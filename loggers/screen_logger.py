@@ -10,6 +10,7 @@ from entity import MyState
 from entity.agent_trace import AgentTrace, ResponseStatus
 from database import engine
 from utils.mcp_client import is_mcp_browser_tool
+from utils.log_path import build_timestamped_filename, short_session_fragment
 from utils.qwen_model import normalize_content
 from utils.trace_sanitizer import sanitize_trace
 
@@ -32,10 +33,13 @@ async def log_agent_response(state:types.StateT, runtime) -> None:
     当代理成功完成任务时，记录所有响应的中间件。
     """
     if state is not None:
-        session_id = state['messages'][0].id
-        path = f"./screen/{session_id}/final_response_{time.time()}.txt"
-        if not os.path.exists(os.path.dirname(path)):
-            os.makedirs(os.path.dirname(path))
+        session_id = state.get('configurable', {}).get('thread_id')
+        if not session_id and state.get('messages'):
+            session_id = state['messages'][0].id
+        session_dir = short_session_fragment(str(session_id) if session_id else None)
+        file_name = build_timestamped_filename("final_response", str(session_id) if session_id else None)
+        path = os.path.join(".", "screen", session_dir, file_name)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path,"w",encoding="utf-8") as f:
             for message in state['messages']:
                 f.write(f"{message}\n")

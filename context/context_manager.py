@@ -15,6 +15,7 @@ from langchain_core.messages.utils import count_tokens_approximately
 from langchain_core.language_models.chat_models import BaseChatModel
 from langgraph.graph.message import REMOVE_ALL_MESSAGES
 from langgraph.runtime import Runtime
+from utils.log_path import build_timestamped_filename
 
 # 尝试导入 AgentMiddleware；如果不可用，则定义兼容的基础类
 try:
@@ -109,7 +110,7 @@ class ContextManagerMiddleware(AgentMiddleware):
 
     def _save_to_file(self, content: str, prefix: str) -> str:
         """将内容保存到文件并返回路径"""
-        file_name = f"{prefix}_{uuid.uuid4()}.txt"
+        file_name = build_timestamped_filename(prefix, self.session_id)
         file_path = os.path.join(self.file_store_path, file_name)
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(content)
@@ -126,6 +127,7 @@ class ContextManagerMiddleware(AgentMiddleware):
     def before_model(self, state: AgentState, runtime: Runtime) -> dict[str, Any] | None:
         messages = state["messages"]
         self._ensure_message_ids(messages)
+        self._sync_session_id_from_state(state, messages)
 
         # 步骤 1: 单消息卸载 (token 阈值)
         processed_messages = self._offload_heavy_messages(messages)
@@ -150,6 +152,14 @@ class ContextManagerMiddleware(AgentMiddleware):
                 *final_messages
             ]
         }
+
+    def _sync_session_id_from_state(self, state: AgentState, messages: list[AnyMessage]) -> None:
+        """优先从 thread_id 同步 session_id，保证归档文件名可定位。"""
+        session_id = state.get("configurable", {}).get("thread_id")
+        if not session_id and messages:
+            session_id = messages[0].id
+        if session_id:
+            self.session_id = str(session_id)
 
     def _content_to_text(self, content: Any) -> str:
         """将字符串或多模态 content 统一转为可计数文本。"""

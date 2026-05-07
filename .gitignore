@@ -27,3 +27,4 @@ temp_uploads/
 .temp_uploads/
 docx/
 .playwright-mcp/*
+tmp/*
