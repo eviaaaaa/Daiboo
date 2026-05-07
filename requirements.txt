@@ -26,3 +26,5 @@ unstructured==0.18.21
 docx2txt==0.9
 uvicorn==0.38.0
 vcrpy==8.0.0
+hcaptcha-challenger>=0.18.13
+loguru>=0.7.3

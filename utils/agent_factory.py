@@ -18,6 +18,7 @@ from tools import (
     VLAnalysisTool,
     CaptureElementContextTool,
     WebObserveTool,
+    HCaptchaSolverTool,
     delay_tool_call,
     search_documents,
     search_task_experience
@@ -43,6 +44,7 @@ def get_agent_tools(mcp_tools: Any, screenshot_helper: Any = None) -> list[Any]:
         CaptureElementContextTool(helper=screenshot_helper),         # 重写版
         VLAnalysisTool(),                                            # 保留
         WebObserveTool(mcp_tools=mcp_tools),                         # 基于 simphtml 的页面观察工具
+        HCaptchaSolverTool(),                                        # hcaptcha-challenger 包装
         terminal_read,                                               # 保留
         terminal_write,                                              # 保留
         search_documents,                                            # 保留
