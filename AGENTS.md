@@ -1,4 +1,4 @@
-# AGENT.md
+# AGENTS.md
 
 本文件只面向 AI coding agent，描述“如何安全、准确地改这个仓库”。
 用户上手、安装、运行、接口说明请看 `README.md`。
@@ -67,6 +67,17 @@
 - 新增 `loggers/diff_middleware.py`，给所有"会改页面状态"的 MCP 浏览器工具自动附 `[diff]` 与 `[transients]` 字段。挂在 `agent_factory` 的 middleware 链中、`delay_tool_call` 之前。
 - `prompt/system_prompt.py` 已加入 4.5（web_observe 选择规则）、5.1-5.4（标签页/受控组件/跨域 iframe/diff 结果阅读）、9.1（工具降级阶梯）。
 - 调研依据：`docx/genericagent_investigation.md`；落地计划：`docx/genericagent_improvement_plan.md`。
+
+## 7.2 当前仓库已知事实（2026-05-07 更新）
+
+- 新增 `tools/hcaptcha_solver_tool.py`，通过 hcaptcha-challenger 的 AgentV 封装 `solve_hcaptcha` 工具；`utils/agent_factory.py` 已把该工具加入 agent 工具集。
+- hCaptcha 标准调用约束写入 `prompt/system_prompt.py`：调用 `solve_hcaptcha` 前不要先 `browser_click`，默认让工具以 `click_checkbox=True` 处理 checkbox 与 challenge 监听时序。
+- 新增 `extensions/llm_adapter.py`，用于 GLM 响应归一化，覆盖多路径拖拽题的箭头串和 `draggable` 数组等返回形态。
+- `utils/mcp_client.py` 启动 `@playwright/mcp` 时启用 `--caps=vision`，因此 `browser_mouse_*_xy` 等坐标类 MCP 工具可用。
+- 新增 `utils/log_path.py` 统一生成带时间戳和 session 片段的归档文件名；`context/context_manager.py` 与 `loggers/screen_logger.py` 已改用 `thread_id` 作为 `session_id` 参与归档路径生成。
+- 手动测试已归入 `test/manual/`；`test/manual/README.md` 记录 MCP smoke、VL 分析、middleware logging、Epic 登录和 hCaptcha demo 的手动用法。
+- `test/manual/hcaptcha_demo_manual.py` 是 hCaptcha demo 联调脚本；`test/test_hcaptcha_solver_classification.py` 覆盖 hCaptcha 题型/响应归一化相关回归。
+- `tmp/` 已加入 `.gitignore`，用于临时产物，不应作为稳定运行目录写入文档承诺。
 
 ## 8. 执行偏好
 
