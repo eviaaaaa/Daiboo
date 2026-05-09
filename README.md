@@ -6,8 +6,9 @@
 
 NexusSurf 通过 **@playwright/mcp** + LangChain/LangGraph 组合，实现可交互的 Web Agent。它不是只执行固定脚本的浏览器自动化工具，而是把浏览器操作、视觉分析、终端读写、文档检索和经验检索放入统一的 Agent 工具链中，由模型按任务目标动态编排。浏览器操作通过 MCP (Model Context Protocol) 以 snapshot-ref 模式驱动，并使用持久会话保持跨工具调用的页面状态。
 
-- 支持自然语言驱动浏览器与辅助工具协同执行。
+- 支持自然语言驱动浏览器与辅助工具协同执行，MCP 已启用 vision 能力，可使用坐标类鼠标工具处理拖拽等场景。
 - 支持文档上传索引、文档检索和任务经验复用。
+- 支持 hCaptcha 专用求解工具（基于 hcaptcha-challenger），用于合法测试页或授权场景下的验证能力联调。
 - 前端内置 RAG 工作台，可直接查看命中的相关 chunk，并对比大块、小块、层级聚合三种检索效果。
 - 支持 CLI 模式和 FastAPI + 前端模式。
 
@@ -16,6 +17,7 @@ NexusSurf 通过 **@playwright/mcp** + LangChain/LangGraph 组合，实现可交
 - 浏览器自动化：通过 @playwright/mcp 连接 CDP 端点，提供页面导航、元素快照交互、信息提取等能力。
 - 模型推理编排：统一调度浏览器工具、视觉分析、终端工具与检索工具，支持多轮会话和可中断审批（HITL 中间件）。
 - 上下文管理：长上下文压缩（旧消息摘要 + 字符硬阈值双触发）、归档和重放辅助。
+- 浏览器动作追踪：对会改页面状态的 MCP 工具自动补充 DOM diff 与瞬时文本，减少额外 snapshot 验证轮次。
 - 检索与记忆：基于 PostgreSQL + PGVector 的文档检索与任务经验沉淀。
 
 ## 运行前准备
@@ -61,6 +63,9 @@ cp .env.example .env
 请至少填写 `.env` 中以下配置：
 
 - `DASHSCOPE_API_KEY`
+- hCaptcha 求解二选一：
+  - GLM 路径：`LLM_PROVIDER=glm`、`GLM_API_KEY`，可选 `GLM_BASE_URL`、`GLM_MODEL`
+  - Gemini 路径：`GEMINI_API_KEY`
 - `DB_HOST`、`DB_PORT`、`DB_NAME`、`DB_USER`、`DB_PASSWORD`
 - `BROWSER_PATH`、`USER_DATA_DIR`、`DEBUGGING_PORT`
 
@@ -92,7 +97,7 @@ python main.py
 
 Agent 在每次对话中可见的工具分两类：
 
-**MCP 浏览器原子工具**（由 `@playwright/mcp` 动态加载）：`browser_navigate` / `browser_snapshot` / `browser_click` / `browser_type` / `browser_fill_form` / `browser_press_key` / `browser_select_option` / `browser_tabs` / `browser_evaluate` / `browser_file_upload` / `browser_take_screenshot` / `browser_wait_for` 等。详细列表运行时通过 `GET /tools` 查询。
+**MCP 浏览器原子工具**（由 `@playwright/mcp` 动态加载）：`browser_navigate` / `browser_snapshot` / `browser_click` / `browser_type` / `browser_fill_form` / `browser_press_key` / `browser_select_option` / `browser_tabs` / `browser_evaluate` / `browser_file_upload` / `browser_take_screenshot` / `browser_wait_for` 等。MCP 启动参数包含 `--caps=vision`，运行时还会暴露 `browser_mouse_*_xy` 等坐标类工具。详细列表运行时通过 `GET /tools` 查询。
 
 **本仓库自定义工具**（在 `tools/` 下）：
 
@@ -101,6 +106,7 @@ Agent 在每次对话中可见的工具分两类：
   - `text_only=False`（默认）：简化 HTML 输出，保留结构便于后续 `browser_snapshot` 拿 ref 操作
 - `capture_element_context`：截取目标元素及周围上下文的截图，返回本地路径。
 - `vl_analysis_tool`：视觉模型分析图片（验证码、图表等）。
+- `solve_hcaptcha`：基于 hcaptcha-challenger 在当前 CDP 浏览器页上处理 hCaptcha。调用前不要先点 hCaptcha checkbox，默认让工具以 `click_checkbox=True` 负责 checkbox 与 challenge 监听时序；工具成功返回后仍需用 `web_observe` 或 `browser_snapshot` 复核页面状态。
 - `terminal_read` / `terminal_write`：终端读写操作（带 HITL 审批）。
 - `search_documents` / `search_task_experience`：RAG 检索（文档 / 历史经验）。
 
@@ -121,6 +127,7 @@ Agent 在每次对话中可见的工具分两类：
 ## 测试
 
 ```powershell
+conda activate langchainenv
 pytest
 ```
 
@@ -128,7 +135,17 @@ pytest
 
 ```powershell
 pytest test/test_context_compression.py -v -s
+pytest test/test_hcaptcha_solver_classification.py -v
 ```
+
+手工联调脚本放在 `test/manual/`，不会被默认 `pytest` 收集。常用命令：
+
+```powershell
+conda run -n langchainenv python test/manual/epic_login_manual.py
+conda run -n langchainenv python test/manual/hcaptcha_demo_manual.py --prompt v4 --recursion 120
+```
+
+其中 hCaptcha demo 只面向官方演示站和授权测试场景；`--prompt v4` 会调用 `solve_hcaptcha`，需要已配置 GLM 或 Gemini 相关环境变量。
 
 ## 常见问题
 
@@ -136,8 +153,9 @@ pytest test/test_context_compression.py -v -s
 - 数据库报错 `extension "vector" does not exist`：在目标数据库执行 `CREATE EXTENSION IF NOT EXISTS vector;`。
 - MCP 连接失败 / `npx` 找不到：确认 Node.js 已安装且 `npx @playwright/mcp@latest` 可正常运行。
 - 浏览器未启动 / CDP 连接被拒绝：检查 `.env` 中 `BROWSER_PATH` 和 `DEBUGGING_PORT` 配置，确保浏览器以 `--remote-debugging-port` 启动。
+- `solve_hcaptcha` 返回 `missing_*_api_key`：检查 `.env` 是否配置 `LLM_PROVIDER=glm + GLM_API_KEY`，或配置可直连的 `GEMINI_API_KEY`。
 
 ## 文档分工
 
 - `README.md`：面向人类开发者与使用者，负责上手与运行说明。
-- `AGENT.md`：面向 AI coding agent，负责修改约束、边界和维护规则。
+- `AGENTS.md`：面向 AI coding agent，负责修改约束、边界和维护规则。
