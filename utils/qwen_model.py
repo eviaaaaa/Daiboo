@@ -29,6 +29,10 @@ def _env_value(name: str) -> str:
     return (os.getenv(name) or "").strip()
 
 
+def is_openai_compatible_configured() -> bool:
+    return bool(_env_value("OPENAI_API_KEY"))
+
+
 def create_openai_compatible_model(
     model_name: str | None = None,
     temperature: float = 0.0,
