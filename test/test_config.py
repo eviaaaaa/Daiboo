@@ -43,3 +43,10 @@ def test_upload_dir_expands_user_path(monkeypatch, tmp_path) -> None:
     config = _load_config_module()
 
     assert config.upload_dir() == tmp_path / "naxussurf-uploads"
+
+
+def test_upload_dir_resolves_relative_path_from_project_root(monkeypatch) -> None:
+    monkeypatch.setenv("UPLOAD_DIR", "custom_uploads")
+    config = _load_config_module()
+
+    assert config.upload_dir() == config.project_root() / "custom_uploads"

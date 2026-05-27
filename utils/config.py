@@ -15,7 +15,10 @@ def project_root() -> Path:
 
 def upload_dir() -> Path:
     """Return the server-controlled temporary upload directory."""
-    return Path(os.getenv("UPLOAD_DIR", project_root() / "temp_uploads")).expanduser()
+    configured = Path(os.getenv("UPLOAD_DIR", "temp_uploads")).expanduser()
+    if configured.is_absolute():
+        return configured
+    return project_root() / configured
 
 
 def app_host() -> str:
