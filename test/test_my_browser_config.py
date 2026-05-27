@@ -61,3 +61,19 @@ def test_my_browser_rejects_invalid_debugging_port(monkeypatch, port: str) -> No
     sys.modules.pop("test_my_browser_module", None)
     with pytest.raises(ValueError, match="DEBUGGING_PORT must be an integer between 1 and 65535"):
         _load_my_browser_module()
+
+
+@pytest.mark.asyncio
+async def test_ensure_browser_running_rejects_invalid_explicit_port(monkeypatch) -> None:
+    monkeypatch.setenv("DEBUGGING_PORT", "9222")
+
+    sys.modules.pop("test_my_browser_module", None)
+    my_browser = _load_my_browser_module()
+
+    async def fake_check_port_in_use(port: int) -> bool:
+        return True
+
+    monkeypatch.setattr(my_browser, "check_port_in_use", fake_check_port_in_use)
+
+    with pytest.raises(ValueError, match="DEBUGGING_PORT must be an integer between 1 and 65535"):
+        await my_browser.ensure_browser_running(port=0)

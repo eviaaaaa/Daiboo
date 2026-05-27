@@ -13,6 +13,12 @@ _PORT_ERROR = "DEBUGGING_PORT must be an integer between 1 and 65535"
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
+def _validate_port(port: int) -> int:
+    if not 1 <= port <= 65535:
+        raise ValueError(_PORT_ERROR)
+    return port
+
+
 def _env_text(name: str, default: str) -> str:
     return (os.getenv(name) or "").strip() or default
 
@@ -35,9 +41,7 @@ def _env_port(name: str, default: str) -> int:
     except (TypeError, ValueError) as exc:
         raise ValueError(_PORT_ERROR) from exc
 
-    if not 1 <= port <= 65535:
-        raise ValueError(_PORT_ERROR)
-    return port
+    return _validate_port(port)
 
 
 # ========================
@@ -91,7 +95,7 @@ atexit.register(cleanup_browser)
 # ========================
 async def ensure_browser_running(port: int = None):
     """确保浏览器进程运行在指定端口（仅启动进程，不返回 Browser 对象）"""
-    port = port or DEBUGGING_PORT
+    port = DEBUGGING_PORT if port is None else _validate_port(port)
     if await check_port_in_use(port):
         print(f"端口 {port} 已有浏览器运行，跳过启动。")
         return
