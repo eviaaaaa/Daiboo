@@ -45,3 +45,15 @@ def test_frontend_has_responsive_mobile_navigation():
     assert "@click=\"currentTab = 'chat'\"" in html
     assert "@click=\"currentTab = 'upload'\"" in html
     assert "@click=\"fetchTools(); currentTab = 'tools'\"" in html
+
+
+def test_frontend_markdown_is_readable_in_dark_agent_messages():
+    html = _frontend_html()
+
+    assert "markdown-body" in html
+    assert ".markdown-body pre" in html
+    assert ".markdown-body code" in html
+    assert ".markdown-body a" in html
+    assert "overflow-x: auto" in html
+    assert "JetBrains Mono" in html
+    assert "prose prose-sm" not in html
