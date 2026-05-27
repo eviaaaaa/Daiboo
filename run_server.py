@@ -5,6 +5,11 @@ import time
 import threading
 import sys
 import asyncio
+from dotenv import load_dotenv
+
+from utils.config import app_host, app_port
+
+load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env")
 
 # 为 Playwright 设置 Windows 事件循环策略
 if sys.platform == 'win32':
@@ -22,9 +27,11 @@ def main():
     threading.Thread(target=open_browser, daemon=True).start()
 
     # 运行 API 服务
-    print("Starting API server on http://localhost:8801")
+    host = app_host()
+    port = app_port()
+    print(f"Starting API server on http://{host}:{port}")
     # 禁用 reload，确保事件循环策略在主进程中正确生效
-    uvicorn.run("api:app", host="0.0.0.0", port=8801, reload=False, loop="asyncio")
+    uvicorn.run("api:app", host=host, port=port, reload=False, loop="asyncio")
 
 if __name__ == "__main__":
     main()

@@ -1,4 +1,5 @@
 import asyncio
+from dotenv import load_dotenv
 import pprint
 from typing import TYPE_CHECKING
 
@@ -11,6 +12,10 @@ from utils.agent_factory import create_browser_agent
 
 if TYPE_CHECKING:
     pass
+
+from pathlib import Path
+
+load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env")
 
 
 async def ainput(prompt: str = "") -> str:

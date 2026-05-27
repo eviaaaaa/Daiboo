@@ -13,7 +13,10 @@ from pathlib import Path
 import asyncio
 import sys
 import pprint
+from dotenv import load_dotenv
 from utils.qwen_model import normalize_content
+
+load_dotenv(dotenv_path=Path(__file__).resolve().parents[1] / ".env")
 
 # 为 Playwright 设置 Windows 事件循环策略
 if sys.platform == 'win32':
@@ -23,6 +26,7 @@ from utils.my_browser import ensure_browser_running
 from utils.mcp_client import create_persistent_mcp_session
 from utils.agent_factory import create_browser_agent, get_agent_tools
 from utils.upload_paths import build_safe_upload_path
+from utils.config import upload_dir
 from rag.document_rag_pgvector import (
     debug_query_document_from_pgvector,
     get_rag_corpus_summary,
@@ -310,8 +314,8 @@ async def upload_document(
 ) -> dict[str, str]:
     """上传文件并写入向量库。"""
 
-    temp_dir: Path = Path("temp_uploads")
-    temp_dir.mkdir(exist_ok=True)
+    temp_dir: Path = upload_dir()
+    temp_dir.mkdir(parents=True, exist_ok=True)
 
     try:
         display_name, file_path = build_safe_upload_path(temp_dir, file.filename or "")

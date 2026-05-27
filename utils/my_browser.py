@@ -76,6 +76,9 @@ async def ensure_browser_running(port: int = None):
         "--disable-default-apps",
         "--disable-popup-blocking",
         "--disable-gpu",
+        "--no-sandbox",
+        "--disable-dev-shm-usage",
+        "--headless=new",
         "--start-maximized"
     ]
     print("启动命令:", " ".join(f'"{c}"' if " " in c else c for c in cmd))

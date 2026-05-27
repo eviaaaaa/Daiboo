@@ -1,6 +1,9 @@
 """
-Qwen 模型初始化模块
-提供统一的模型配置和初始化接口
+模型初始化模块。
+
+默认沿用 DashScope / ChatTongyi；当环境中配置了 OpenAI 兼容接口
+（OPENAI_API_KEY，可选 OPENAI_BASE_URL / OPENAI_MODEL）时，主聊天模型可
+直接复用 Hermes 等本地网关的 token 与 endpoint，降低本地启动门槛。
 
 注意：langchain-community 0.4 的 ChatTongyi 内置的多模态模型白名单
 只包含旧版 qwen-vl-* / qwen-audio-* 系列。
@@ -9,6 +12,8 @@ MultiModalConversation.call() (multimodal-generation 端点)，
 但 ChatTongyi 不认识它们，会错误地路由到 Generation.call()。
 因此我们在初始化后手动修正 client。
 """
+import os
+
 import dashscope
 from langchain_community.chat_models import tongyi
 
@@ -18,6 +23,45 @@ from langchain_community.chat_models import tongyi
 FORCE_MULTIMODAL_MODELS = [
     "qwen3.5-plus",
 ]
+
+
+def _env_value(name: str) -> str:
+    return (os.getenv(name) or "").strip()
+
+
+def create_openai_compatible_model(
+    model_name: str | None = None,
+    temperature: float = 0.0,
+    request_timeout: int = 3000,
+    **extra_kwargs,
+):
+    """Create a ChatOpenAI model from OPENAI_* environment variables.
+
+    The import is intentionally lazy so lightweight tests that only exercise
+    non-LLM helpers do not require ``langchain-openai`` to be installed.
+    """
+    api_key = _env_value("OPENAI_API_KEY")
+    if not api_key:
+        raise RuntimeError("OPENAI_API_KEY is required for OpenAI-compatible model mode")
+
+    try:
+        from langchain_openai import ChatOpenAI
+    except ImportError as exc:  # pragma: no cover - depends on optional package install state
+        raise RuntimeError(
+            "langchain-openai is required when OPENAI_API_KEY is configured. "
+            "Install it or unset OPENAI_API_KEY to use DashScope/ChatTongyi."
+        ) from exc
+
+    configured_model = model_name or _env_value("OPENAI_MODEL") or "gpt-4o-mini"
+    base_url = _env_value("OPENAI_BASE_URL") or None
+    return ChatOpenAI(
+        model=configured_model,
+        api_key=api_key,
+        base_url=base_url,
+        temperature=temperature,
+        timeout=request_timeout,
+        **extra_kwargs,
+    )
 
 
 def create_qwen_model(

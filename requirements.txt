@@ -20,6 +20,7 @@ pytest-asyncio==1.3.0
 python-dotenv==1.1.1
 python-multipart==0.0.20
 sentence-transformers==5.1.2
+socksio>=1.0.0
 sqlalchemy==2.0.43
 torch==2.5.1+cu121
 unstructured==0.18.21
@@ -27,4 +28,5 @@ docx2txt==0.9
 uvicorn==0.38.0
 vcrpy==8.0.0
 hcaptcha-challenger>=0.18.13
+langchain-openai>=0.3.0
 loguru>=0.7.3

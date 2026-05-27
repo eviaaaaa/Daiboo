@@ -1,6 +1,7 @@
 from langchain import agents
 from langchain.agents.middleware import HumanInTheLoopMiddleware
 from typing import TYPE_CHECKING, Any
+import os
 from context.context_manager import ContextManagerMiddleware
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.prebuilt.tool_node import ToolNode
@@ -24,7 +25,7 @@ from tools import (
     search_task_experience
 )
 from tools.terminal_tools import terminal_read, terminal_write
-from utils.qwen_model import create_qwen_model
+from utils.qwen_model import create_openai_compatible_model, create_qwen_model
 
 if TYPE_CHECKING:
     from langgraph.graph.state import CompiledStateGraph
@@ -76,12 +77,20 @@ async def create_browser_agent(
     # 初始化工具集
     tools = get_agent_tools(mcp_tools, screenshot_helper)
 
-    # 初始化模型
-    model = create_qwen_model(
-        model_name=model_name,
-        temperature=0.0,
-        request_timeout=5000,
-    )
+    # 初始化模型。默认保持 Qwen/DashScope；如果显式提供 OPENAI_API_KEY，
+    # 则走 OpenAI 兼容接口，便于复用 Hermes/Gateway 的本地模型配置。
+    if os.getenv("OPENAI_API_KEY"):
+        model = create_openai_compatible_model(
+            model_name=os.getenv("OPENAI_MODEL") or model_name,
+            temperature=0.0,
+            request_timeout=5000,
+        )
+    else:
+        model = create_qwen_model(
+            model_name=model_name,
+            temperature=0.0,
+            request_timeout=5000,
+        )
 
     # 初始化 ContextManagerMiddleware
     context_middleware = ContextManagerMiddleware(model=model)

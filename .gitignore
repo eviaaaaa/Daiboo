@@ -2,6 +2,8 @@
 .env
 
 # Python
+.venv/
+venv/
 __pycache__/
 *.py[cod]
 *$py.class
@@ -21,6 +23,7 @@ test/vcr_cassettes/
 test.ipynb
 
 # Project Specific
+.browser-profile/
 screen/
 storage/
 temp_uploads/

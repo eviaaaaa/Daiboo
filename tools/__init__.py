@@ -1,11 +1,8 @@
 """工具包。"""
-from tools.capture_element_context_tool import CaptureElementContextTool
-from tools.vision_analysis_tool import VLAnalysisTool
-from tools.delay_tool_call import delay_tool_call
-from tools.terminal_tools import terminal_read, terminal_write
-from tools.rag_tools import search_documents, search_task_experience
-from tools.web_observe_tool import WebObserveTool
-from tools.hcaptcha_solver_tool import HCaptchaSolverTool
+from __future__ import annotations
+
+from importlib import import_module
+from typing import Any
 
 __all__ = [
     "CaptureElementContextTool",
@@ -18,3 +15,24 @@ __all__ = [
     "WebObserveTool",
     "HCaptchaSolverTool",
 ]
+
+_EXPORTS = {
+    "CaptureElementContextTool": ("tools.capture_element_context_tool", "CaptureElementContextTool"),
+    "VLAnalysisTool": ("tools.vision_analysis_tool", "VLAnalysisTool"),
+    "delay_tool_call": ("tools.delay_tool_call", "delay_tool_call"),
+    "terminal_read": ("tools.terminal_tools", "terminal_read"),
+    "terminal_write": ("tools.terminal_tools", "terminal_write"),
+    "search_documents": ("tools.rag_tools", "search_documents"),
+    "search_task_experience": ("tools.rag_tools", "search_task_experience"),
+    "WebObserveTool": ("tools.web_observe_tool", "WebObserveTool"),
+    "HCaptchaSolverTool": ("tools.hcaptcha_solver_tool", "HCaptchaSolverTool"),
+}
+
+
+def __getattr__(name: str) -> Any:
+    if name not in _EXPORTS:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    module_name, attr_name = _EXPORTS[name]
+    value = getattr(import_module(module_name), attr_name)
+    globals()[name] = value
+    return value
