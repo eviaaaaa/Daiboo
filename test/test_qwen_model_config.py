@@ -59,6 +59,30 @@ def test_create_openai_compatible_model_strips_blank_base_url(monkeypatch) -> No
     assert model.kwargs["timeout"] == 12
 
 
+def test_create_openai_compatible_model_ignores_blank_model_argument(monkeypatch) -> None:
+    fake_langchain_openai = types.SimpleNamespace(ChatOpenAI=_FakeChatOpenAI)
+    monkeypatch.setitem(sys.modules, "langchain_openai", fake_langchain_openai)
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("OPENAI_MODEL", "env-model")
+
+    qwen_model = _load_qwen_model_module()
+    model = qwen_model.create_openai_compatible_model(model_name="   ")
+
+    assert model.kwargs["model"] == "env-model"
+
+
+def test_create_openai_compatible_model_ignores_blank_env_model(monkeypatch) -> None:
+    fake_langchain_openai = types.SimpleNamespace(ChatOpenAI=_FakeChatOpenAI)
+    monkeypatch.setitem(sys.modules, "langchain_openai", fake_langchain_openai)
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("OPENAI_MODEL", "   ")
+
+    qwen_model = _load_qwen_model_module()
+    model = qwen_model.create_openai_compatible_model(model_name="fallback-model")
+
+    assert model.kwargs["model"] == "fallback-model"
+
+
 def test_create_openai_compatible_model_requires_api_key(monkeypatch) -> None:
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     qwen_model = _load_qwen_model_module()

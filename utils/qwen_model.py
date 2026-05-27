@@ -54,7 +54,7 @@ def create_openai_compatible_model(
             "Install it or unset OPENAI_API_KEY to use DashScope/ChatTongyi."
         ) from exc
 
-    configured_model = model_name or _env_value("OPENAI_MODEL") or "gpt-4o-mini"
+    configured_model = (model_name or "").strip() or _env_value("OPENAI_MODEL") or "gpt-4o-mini"
     base_url = _env_value("OPENAI_BASE_URL") or None
     return ChatOpenAI(
         model=configured_model,
