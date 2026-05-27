@@ -57,3 +57,15 @@ def test_frontend_markdown_is_readable_in_dark_agent_messages():
     assert "overflow-x: auto" in html
     assert "JetBrains Mono" in html
     assert "prose prose-sm" not in html
+
+
+def test_frontend_tools_view_has_loading_error_and_empty_states():
+    html = _frontend_html()
+
+    assert "isLoadingTools" in html
+    assert "toolsError" in html
+    assert "tools-empty-state" in html
+    assert "tools-error-state" in html
+    assert "tools-loading-state" in html
+    assert "重新加载" in html
+    assert "throw new Error(err.detail || '工具列表接口调用失败')" in html
