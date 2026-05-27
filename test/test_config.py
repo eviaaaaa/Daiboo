@@ -57,3 +57,10 @@ def test_upload_dir_resolves_relative_path_from_project_root(monkeypatch) -> Non
     config = _load_config_module()
 
     assert config.upload_dir() == config.project_root() / "custom_uploads"
+
+
+def test_upload_dir_treats_blank_env_as_default(monkeypatch) -> None:
+    monkeypatch.setenv("UPLOAD_DIR", "   ")
+    config = _load_config_module()
+
+    assert config.upload_dir() == config.project_root() / "temp_uploads"
