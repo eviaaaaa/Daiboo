@@ -23,6 +23,7 @@ test/vcr_cassettes/
 test.ipynb
 
 # Project Specific
+.hermes-notes/
 .browser-profile/
 screen/
 storage/
