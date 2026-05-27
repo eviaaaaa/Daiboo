@@ -1,4 +1,18 @@
-from tools.hcaptcha_solver_tool import _classify_solver_exception
+from tools.hcaptcha_solver_tool import _classify_solver_exception, default_cdp_endpoint
+
+
+def test_hcaptcha_default_cdp_endpoint_follows_debugging_port(monkeypatch):
+    monkeypatch.setenv("DEBUGGING_PORT", "9333")
+    monkeypatch.delenv("BROWSER_CDP_ENDPOINT", raising=False)
+
+    assert default_cdp_endpoint() == "http://127.0.0.1:9333"
+
+
+def test_hcaptcha_default_cdp_endpoint_treats_blank_override_as_unset(monkeypatch):
+    monkeypatch.setenv("BROWSER_CDP_ENDPOINT", "   ")
+    monkeypatch.setenv("DEBUGGING_PORT", "9444")
+
+    assert default_cdp_endpoint() == "http://127.0.0.1:9444"
 
 
 def test_classify_validation_error_as_non_retryable_schema_mismatch():
