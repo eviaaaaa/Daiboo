@@ -62,12 +62,15 @@ cp .env.example .env
 
 请至少填写 `.env` 中以下配置：
 
-- `DASHSCOPE_API_KEY`
+- 主聊天模型二选一：
+  - OpenAI 兼容接口：`OPENAI_API_KEY`，可选 `OPENAI_BASE_URL`、`OPENAI_MODEL`
+  - DashScope 兼容路径：`DASHSCOPE_API_KEY`（当 `OPENAI_API_KEY` 留空时自动回退）
 - hCaptcha 求解二选一：
   - GLM 路径：`LLM_PROVIDER=glm`、`GLM_API_KEY`，可选 `GLM_BASE_URL`、`GLM_MODEL`
   - Gemini 路径：`GEMINI_API_KEY`
-- `DB_HOST`、`DB_PORT`、`DB_NAME`、`DB_USER`、`DB_PASSWORD`
-- `BROWSER_PATH`、`USER_DATA_DIR`、`DEBUGGING_PORT`
+- RAG/文档上传功能需要 PostgreSQL + PGVector：`DB_HOST`、`DB_PORT`、`DB_NAME`、`DB_USER`、`DB_PASSWORD`
+- 浏览器控制：`BROWSER_PATH`、`USER_DATA_DIR`、`DEBUGGING_PORT`
+- Web 服务可选项：`HOST`（默认 `127.0.0.1`）、`PORT`（默认 `8801`，范围 `1..65535`）、`UPLOAD_DIR`（默认 `temp_uploads/`）
 
 ## 启动方式
 
@@ -79,7 +82,7 @@ python run_server.py
 
 启动后：
 
-- API 默认监听 `http://localhost:8801`
+- API 默认监听 `http://127.0.0.1:8801`（可用 `.env` 里的 `HOST` / `PORT` 覆盖）
 - 会自动打开 `frontend/index.html`
 
 ### 2. CLI 模式
@@ -151,8 +154,9 @@ conda run -n langchainenv python test/manual/hcaptcha_demo_manual.py --prompt v4
 
 - `ModuleNotFoundError`：检查是否激活虚拟环境并已安装依赖。
 - 数据库报错 `extension "vector" does not exist`：在目标数据库执行 `CREATE EXTENSION IF NOT EXISTS vector;`。
-- MCP 连接失败 / `npx` 找不到：确认 Node.js 已安装且 `npx @playwright/mcp@latest` 可正常运行。
-- 浏览器未启动 / CDP 连接被拒绝：检查 `.env` 中 `BROWSER_PATH` 和 `DEBUGGING_PORT` 配置，确保浏览器以 `--remote-debugging-port` 启动。
+- MCP 连接失败 / `npx` 找不到：确认 Node.js 已安装且 `npx @playwright/mcp@latest` 可正常运行；如需指定命令，可设置 `NPX_COMMAND`。
+- 浏览器未启动 / CDP 连接被拒绝：检查 `.env` 中 `BROWSER_PATH` 和 `DEBUGGING_PORT` 配置，确保浏览器以 `--remote-debugging-port` 启动；Linux/headless 环境会自动附加 `--headless=new`、`--no-sandbox` 等参数。
+- `PORT must be an integer between 1 and 65535`：检查 `.env` 中 `PORT` 是否为空、非数字或超出端口范围。
 - `solve_hcaptcha` 返回 `missing_*_api_key`：检查 `.env` 是否配置 `LLM_PROVIDER=glm + GLM_API_KEY`，或配置可直连的 `GEMINI_API_KEY`。
 
 ## 文档分工
