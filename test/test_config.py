@@ -21,6 +21,13 @@ def test_app_host_defaults_to_loopback(monkeypatch) -> None:
     assert config.app_host() == "127.0.0.1"
 
 
+def test_app_host_treats_blank_env_as_default_loopback(monkeypatch) -> None:
+    monkeypatch.setenv("HOST", "   ")
+    config = _load_config_module()
+
+    assert config.app_host() == "127.0.0.1"
+
+
 def test_app_port_accepts_valid_env_port(monkeypatch) -> None:
     monkeypatch.setenv("PORT", "8802")
     config = _load_config_module()

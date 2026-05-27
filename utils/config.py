@@ -22,7 +22,7 @@ def upload_dir() -> Path:
 
 
 def app_host() -> str:
-    return os.getenv("HOST", "127.0.0.1")
+    return (os.getenv("HOST") or "").strip() or "127.0.0.1"
 
 
 def app_port() -> int:
