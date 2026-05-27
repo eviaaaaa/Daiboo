@@ -12,6 +12,7 @@ from contextlib import asynccontextmanager
 
 from langchain_mcp_adapters.tools import load_mcp_tools
 from langchain_mcp_adapters.sessions import create_session
+from utils.my_browser import DEBUGGING_PORT
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +23,9 @@ def is_mcp_browser_tool(tool_name: str) -> bool:
 
 
 # MCP 服务器连接配置
-def _mcp_connection(cdp_endpoint: str = "http://127.0.0.1:9222"):
+def _mcp_connection(cdp_endpoint: str | None = None):
+    if cdp_endpoint is None:
+        cdp_endpoint = f"http://127.0.0.1:{DEBUGGING_PORT}"
     npx_command = os.getenv("NPX_COMMAND") or shutil.which("npx.cmd") or shutil.which("npx") or "npx"
     return {
         "command": npx_command,
@@ -37,7 +40,7 @@ def _mcp_connection(cdp_endpoint: str = "http://127.0.0.1:9222"):
 
 
 @asynccontextmanager
-async def create_persistent_mcp_session(cdp_endpoint: str = "http://127.0.0.1:9222"):
+async def create_persistent_mcp_session(cdp_endpoint: str | None = None):
     """创建持久 MCP 会话，返回工具列表。
 
     必须在 async with 中使用，session（subprocess）在退出时自动清理。
