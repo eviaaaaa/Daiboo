@@ -6,6 +6,9 @@ import os
 from pathlib import Path
 
 
+_PORT_ERROR = "PORT must be an integer between 1 and 65535"
+
+
 def project_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
@@ -20,4 +23,13 @@ def app_host() -> str:
 
 
 def app_port() -> int:
-    return int(os.getenv("PORT", "8801"))
+    raw_port = os.getenv("PORT", "8801")
+    try:
+        port = int(raw_port)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(_PORT_ERROR) from exc
+
+    if not 1 <= port <= 65535:
+        raise ValueError(_PORT_ERROR)
+
+    return port
