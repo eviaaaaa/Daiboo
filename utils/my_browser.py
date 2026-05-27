@@ -9,15 +9,19 @@ from dotenv import load_dotenv
 # 加载 .env 依赖
 load_dotenv()
 
+def _env_text(name: str, default: str) -> str:
+    return (os.getenv(name) or "").strip() or default
+
+
 # ========================
 # 配置区
 # ========================
-BROWSER_PATH = os.getenv("BROWSER_PATH", r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe")
+BROWSER_PATH = _env_text("BROWSER_PATH", r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe")
 # 或 Chrome: r"C:\Program Files\Google\Chrome\Application\chrome.exe"
 
 # 使用临时目录避免权限问题
-USER_DATA_DIR = Path(os.getenv("USER_DATA_DIR", r"C:\playwright_edge_refined"))
-DEBUGGING_PORT = int(os.getenv("DEBUGGING_PORT", "9222"))
+USER_DATA_DIR = Path(_env_text("USER_DATA_DIR", r"C:\playwright_edge_refined"))
+DEBUGGING_PORT = int(_env_text("DEBUGGING_PORT", "9222"))
 
 # 用于保存浏览器子进程的全局变量
 browser_process: typing.Optional[subprocess.Popen] = None
