@@ -12,10 +12,8 @@ MultiModalConversation.call() (multimodal-generation 端点)，
 但 ChatTongyi 不认识它们，会错误地路由到 Generation.call()。
 因此我们在初始化后手动修正 client。
 """
+import importlib
 import os
-
-import dashscope
-from langchain_community.chat_models import tongyi
 
 # 需要强制走 MultiModalConversation 端点的模型（DashScope 要求）
 # ChatTongyi 只在 model_name 包含 "vl" 或在其内部白名单中时才自动切换，
@@ -89,6 +87,9 @@ def create_qwen_model(
     返回：
         配置好的 ChatTongyi 模型实例
     """
+    dashscope = importlib.import_module("dashscope")
+    tongyi = importlib.import_module("langchain_community.chat_models.tongyi")
+
     model = tongyi.ChatTongyi(
         model_name=model_name,
         temperature=temperature,

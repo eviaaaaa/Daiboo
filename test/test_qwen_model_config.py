@@ -16,6 +16,17 @@ def _load_qwen_model_module():
     return module
 
 
+def test_importing_qwen_model_does_not_import_dashscope_integrations(monkeypatch) -> None:
+    sys.modules.pop("test_qwen_model_module", None)
+    sys.modules.pop("dashscope", None)
+    sys.modules.pop("langchain_community.chat_models.tongyi", None)
+
+    _load_qwen_model_module()
+
+    assert "dashscope" not in sys.modules
+    assert "langchain_community.chat_models.tongyi" not in sys.modules
+
+
 class _FakeChatOpenAI:
     def __init__(self, **kwargs):
         self.kwargs = kwargs
