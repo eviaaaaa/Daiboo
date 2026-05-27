@@ -27,10 +27,13 @@ def _npx_command() -> str:
     return env_command or shutil.which("npx.cmd") or shutil.which("npx") or "npx"
 
 
+def _default_cdp_endpoint() -> str:
+    return f"http://127.0.0.1:{DEBUGGING_PORT}"
+
+
 # MCP 服务器连接配置
 def _mcp_connection(cdp_endpoint: str | None = None):
-    if cdp_endpoint is None:
-        cdp_endpoint = f"http://127.0.0.1:{DEBUGGING_PORT}"
+    cdp_endpoint = (cdp_endpoint or "").strip() or _default_cdp_endpoint()
     npx_command = _npx_command()
     return {
         "command": npx_command,
