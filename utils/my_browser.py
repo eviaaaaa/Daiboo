@@ -9,8 +9,23 @@ from dotenv import load_dotenv
 # 加载 .env 依赖
 load_dotenv()
 
+_PORT_ERROR = "DEBUGGING_PORT must be an integer between 1 and 65535"
+
+
 def _env_text(name: str, default: str) -> str:
     return (os.getenv(name) or "").strip() or default
+
+
+def _env_port(name: str, default: str) -> int:
+    raw_port = _env_text(name, default)
+    try:
+        port = int(raw_port)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(_PORT_ERROR) from exc
+
+    if not 1 <= port <= 65535:
+        raise ValueError(_PORT_ERROR)
+    return port
 
 
 # ========================
@@ -21,7 +36,7 @@ BROWSER_PATH = _env_text("BROWSER_PATH", r"C:\Program Files (x86)\Microsoft\Edge
 
 # 使用临时目录避免权限问题
 USER_DATA_DIR = Path(_env_text("USER_DATA_DIR", r"C:\playwright_edge_refined"))
-DEBUGGING_PORT = int(_env_text("DEBUGGING_PORT", "9222"))
+DEBUGGING_PORT = _env_port("DEBUGGING_PORT", "9222")
 
 # 用于保存浏览器子进程的全局变量
 browser_process: typing.Optional[subprocess.Popen] = None
