@@ -18,9 +18,11 @@ if sys.platform == 'win32':
 def open_browser():
     # 给服务一点启动时间（增加到 5 秒，便于浏览器启动）
     time.sleep(5)
-    frontend_path = Path(__file__).parent / "frontend" / "index.html"
-    print(f"Opening frontend: {frontend_path}")
-    webbrowser.open(frontend_path.as_uri())
+    host = app_host()
+    display_host = "127.0.0.1" if host == "0.0.0.0" else host
+    frontend_url = f"http://{display_host}:{app_port()}/"
+    print(f"Opening frontend: {frontend_url}")
+    webbrowser.open(frontend_url)
 
 def main():
     # 在单独线程中打开浏览器

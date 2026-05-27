@@ -1,7 +1,7 @@
 import uvicorn
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from contextlib import asynccontextmanager
 from langchain.messages import HumanMessage, AIMessage
@@ -183,6 +183,11 @@ class ErrorResponse(BaseModel):
     """错误响应体。"""
 
     detail: str = Field(..., description="错误详情。")
+
+
+@app.get("/", include_in_schema=False)
+async def frontend_index() -> FileResponse:
+    return FileResponse(Path(__file__).resolve().parent / "frontend" / "index.html")
 
 
 @app.post(

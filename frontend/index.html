@@ -9,60 +9,141 @@
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js"></script>
     <style>
-        /* 聊天区域的自定义滚动条 */
+        :root {
+            --ns-bg: #08090a;
+            --ns-panel: #0f1011;
+            --ns-surface: rgba(255,255,255,0.04);
+            --ns-surface-strong: rgba(255,255,255,0.07);
+            --ns-border: rgba(255,255,255,0.08);
+            --ns-border-soft: rgba(255,255,255,0.05);
+            --ns-text: #f7f8f8;
+            --ns-muted: #8a8f98;
+            --ns-soft: #d0d6e0;
+            --ns-accent: #7170ff;
+            --ns-accent-bg: #5e6ad2;
+        }
+        body {
+            background: radial-gradient(circle at top left, rgba(113,112,255,0.16), transparent 32rem), var(--ns-bg);
+        }
+        .app-shell {
+            background: var(--ns-bg);
+            color: var(--ns-text);
+        }
+        .linear-panel {
+            background: rgba(15, 16, 17, 0.92);
+            border-color: var(--ns-border-soft);
+            box-shadow: inset -1px 0 0 rgba(255,255,255,0.03);
+        }
+        .linear-card {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid var(--ns-border);
+            box-shadow: 0 24px 70px rgba(0,0,0,0.34);
+            backdrop-filter: blur(18px);
+        }
+        .linear-surface {
+            background: rgba(15, 16, 17, 0.78);
+            border: 1px solid var(--ns-border);
+        }
+        .nav-item {
+            color: var(--ns-soft);
+            border: 1px solid transparent;
+        }
+        .nav-item:hover {
+            background: rgba(255,255,255,0.05);
+            border-color: var(--ns-border-soft);
+            color: var(--ns-text);
+        }
+        .nav-item-active {
+            background: linear-gradient(135deg, rgba(94,106,210,0.95), rgba(113,112,255,0.78));
+            color: white;
+            box-shadow: 0 10px 30px rgba(94,106,210,0.22);
+        }
+        .hero-gradient {
+            background:
+                radial-gradient(circle at 20% 20%, rgba(113,112,255,0.20), transparent 28rem),
+                linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+        }
+        .soft-scrollbar::-webkit-scrollbar,
         ::-webkit-scrollbar {
             width: 8px;
         }
+        .soft-scrollbar::-webkit-scrollbar-track,
         ::-webkit-scrollbar-track {
-            background: #f1f1f1; 
+            background: rgba(255,255,255,0.04);
         }
+        .soft-scrollbar::-webkit-scrollbar-thumb,
         ::-webkit-scrollbar-thumb {
-            background: #888; 
-            border-radius: 4px;
+            background: rgba(255,255,255,0.18);
+            border-radius: 999px;
         }
+        .soft-scrollbar::-webkit-scrollbar-thumb:hover,
         ::-webkit-scrollbar-thumb:hover {
-            background: #555; 
+            background: rgba(255,255,255,0.28);
         }
         .result-card {
             background-image: linear-gradient(180deg, rgba(255,255,255,1), rgba(248,250,252,1));
         }
     </style>
 </head>
-<body class="bg-gray-100 h-screen flex overflow-hidden font-sans">
-    <div id="app" class="flex w-full h-full">
+<body class="h-screen flex overflow-hidden font-sans app-shell">
+    <div id="app" class="flex w-full h-full app-shell">
         <!-- 侧边栏 -->
-        <div class="w-64 bg-gray-900 text-white flex flex-col shadow-lg">
-            <div class="p-6 text-2xl font-bold border-b border-gray-700 flex items-center">
-                <span>NexusSurf</span>
+        <div class="w-72 linear-panel text-white flex flex-col border-r">
+            <div class="p-6 border-b border-white/5">
+                <div class="flex items-center gap-3">
+                    <div class="h-10 w-10 rounded-xl bg-indigo-500/20 border border-indigo-300/20 flex items-center justify-center text-indigo-200 font-semibold">NS</div>
+                    <div>
+                        <div class="text-xl font-semibold tracking-tight">NexusSurf</div>
+                        <div class="text-xs text-slate-500 mt-0.5">Browser Agent Console</div>
+                    </div>
+                </div>
             </div>
             <nav class="flex-1 p-4 space-y-2">
-                <button @click="currentTab = 'chat'" :class="{'bg-blue-600': currentTab === 'chat', 'hover:bg-gray-800': currentTab !== 'chat'}" class="w-full text-left px-4 py-3 rounded transition duration-200 flex items-center">
+                <button @click="currentTab = 'chat'" :class="currentTab === 'chat' ? 'nav-item-active' : 'nav-item'" class="w-full text-left px-4 py-3 rounded-xl transition duration-200 flex items-center">
                     <span class="mr-3">💬</span> 对话 (Chat)
                 </button>
-                <button @click="currentTab = 'upload'" :class="{'bg-blue-600': currentTab === 'upload', 'hover:bg-gray-800': currentTab !== 'upload'}" class="w-full text-left px-4 py-3 rounded transition duration-200 flex items-center">
+                <button @click="currentTab = 'upload'" :class="currentTab === 'upload' ? 'nav-item-active' : 'nav-item'" class="w-full text-left px-4 py-3 rounded-xl transition duration-200 flex items-center">
                     <span class="mr-3">📂</span> 文档导入 (RAG)
                 </button>
-                <button @click="fetchTools(); currentTab = 'tools'" :class="{'bg-blue-600': currentTab === 'tools', 'hover:bg-gray-800': currentTab !== 'tools'}" class="w-full text-left px-4 py-3 rounded transition duration-200 flex items-center">
+                <button @click="fetchTools(); currentTab = 'tools'" :class="currentTab === 'tools' ? 'nav-item-active' : 'nav-item'" class="w-full text-left px-4 py-3 rounded-xl transition duration-200 flex items-center">
                     <span class="mr-3">🛠️</span> 工具列表 (Tools)
                 </button>
             </nav>
-            <div class="p-4 text-xs text-gray-500 border-t border-gray-700">
+            <div class="p-4 text-xs text-slate-500 border-t border-white/5">
                 Session: {{ threadId }}
             </div>
         </div>
 
         <!-- 主内容区 -->
-        <div class="flex-1 flex flex-col overflow-hidden bg-gray-50">
+        <div class="flex-1 flex flex-col overflow-hidden bg-transparent">
             
             <!-- 对话视图 -->
-            <div v-if="currentTab === 'chat'" class="flex-1 flex flex-col h-full relative">
-                <div class="flex-1 overflow-y-auto p-6 space-y-6" ref="chatContainer">
-                    <div v-if="chatHistory.length === 0" class="text-center text-gray-400 mt-20">
+            <div v-if="currentTab === 'chat'" class="flex-1 flex flex-col h-full relative p-6 gap-5">
+                <section class="linear-card hero-gradient rounded-3xl p-6 md:p-8">
+                    <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                        <div>
+                            <div class="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-300 mb-4">
+                                <span class="h-2 w-2 rounded-full bg-emerald-400"></span>
+                                Local browser automation workspace
+                            </div>
+                            <h1 class="text-3xl md:text-5xl font-semibold tracking-[-0.04em] text-white">NexusSurf 控制台</h1>
+                            <p class="mt-3 max-w-2xl text-slate-400 leading-7">在一个页面内完成浏览器自动化对话、RAG 检索调试和工具能力检查。默认同源 API，适配本地和远程部署。</p>
+                        </div>
+                        <div class="grid grid-cols-3 gap-3 text-center text-xs text-slate-400">
+                            <div class="rounded-2xl border border-white/10 bg-black/20 px-4 py-3"><div class="text-lg text-white font-semibold">Chat</div><div>流式对话</div></div>
+                            <div class="rounded-2xl border border-white/10 bg-black/20 px-4 py-3"><div class="text-lg text-white font-semibold">RAG</div><div>检索实验</div></div>
+                            <div class="rounded-2xl border border-white/10 bg-black/20 px-4 py-3"><div class="text-lg text-white font-semibold">MCP</div><div>工具联动</div></div>
+                        </div>
+                    </div>
+                </section>
+                <div class="flex-1 overflow-y-auto p-2 md:p-4 space-y-6 soft-scrollbar" ref="chatContainer">
+                    <div v-if="chatHistory.length === 0" class="text-center text-slate-500 mt-16">
                         <div class="text-6xl mb-4">👋</div>
-                        <p class="text-xl">开始一个新的对话吧！</p>
+                        <p class="text-xl text-slate-300">开始一个新的对话吧！</p>
+                        <p class="mt-2 text-sm">试试：打开网页、总结页面、执行工具或调试 RAG。</p>
                     </div>
                     <div v-for="(msg, index) in chatHistory" :key="index" :class="{'flex justify-end': msg.role === 'user', 'flex justify-start': msg.role === 'agent'}">
-                        <div :class="{'bg-blue-600 text-white rounded-br-none': msg.role === 'user', 'bg-white text-gray-800 border border-gray-200 rounded-bl-none': msg.role === 'agent'}" class="max-w-4xl p-4 rounded-2xl shadow-sm">
+                        <div :class="{'bg-indigo-600 text-white rounded-br-none shadow-indigo-950/30': msg.role === 'user', 'linear-card text-slate-100 rounded-bl-none': msg.role === 'agent'}" class="max-w-4xl p-4 rounded-2xl shadow-sm">
                             <div v-if="msg.role === 'agent'" class="prose prose-sm max-w-none" v-html="renderMarkdown(msg.content)"></div>
                             <div v-else class="whitespace-pre-wrap">{{ msg.content }}</div>
                         </div>
@@ -78,10 +159,10 @@
                         </div>
                     </div>
                 </div>
-                <div class="p-4 bg-white border-t border-gray-200 shadow-lg">
+                <div class="linear-surface rounded-3xl p-4 border shadow-2xl shadow-black/20">
                     <div class="max-w-5xl mx-auto flex space-x-4">
-                        <input v-model="userInput" @keyup.enter="sendMessage" type="text" placeholder="输入指令..." class="flex-1 border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm transition">
-                        <button @click="sendMessage" :disabled="isThinking || !userInput.trim()" class="bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition font-medium">
+                        <input v-model="userInput" @keyup.enter="sendMessage" type="text" placeholder="输入指令..." class="flex-1 border border-white/10 bg-black/30 text-slate-100 placeholder:text-slate-600 rounded-2xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent shadow-sm transition">
+                        <button @click="sendMessage" :disabled="isThinking || !userInput.trim()" class="bg-indigo-600 text-white px-8 py-3 rounded-2xl hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition font-medium">
                             发送
                         </button>
                     </div>
@@ -329,7 +410,7 @@
 
     <script>
         const { createApp, ref } = Vue;
-        const API_BASE = 'http://localhost:8801';
+        const API_BASE = window.location.origin;
 
         createApp({
             setup() {
