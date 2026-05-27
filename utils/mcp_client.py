@@ -22,11 +22,16 @@ def is_mcp_browser_tool(tool_name: str) -> bool:
     return tool_name.startswith("browser_")
 
 
+def _npx_command() -> str:
+    env_command = (os.getenv("NPX_COMMAND") or "").strip()
+    return env_command or shutil.which("npx.cmd") or shutil.which("npx") or "npx"
+
+
 # MCP 服务器连接配置
 def _mcp_connection(cdp_endpoint: str | None = None):
     if cdp_endpoint is None:
         cdp_endpoint = f"http://127.0.0.1:{DEBUGGING_PORT}"
-    npx_command = os.getenv("NPX_COMMAND") or shutil.which("npx.cmd") or shutil.which("npx") or "npx"
+    npx_command = _npx_command()
     return {
         "command": npx_command,
         "args": [
