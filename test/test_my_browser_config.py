@@ -36,6 +36,15 @@ def test_my_browser_treats_blank_user_data_dir_as_default(monkeypatch) -> None:
     assert my_browser.USER_DATA_DIR == Path(r"C:\playwright_edge_refined")
 
 
+def test_my_browser_resolves_relative_user_data_dir_from_project_root(monkeypatch) -> None:
+    monkeypatch.setenv("USER_DATA_DIR", ".browser-profile")
+
+    sys.modules.pop("test_my_browser_module", None)
+    my_browser = _load_my_browser_module()
+
+    assert my_browser.USER_DATA_DIR == Path(__file__).resolve().parents[1] / ".browser-profile"
+
+
 def test_my_browser_treats_blank_debugging_port_as_default(monkeypatch) -> None:
     monkeypatch.setenv("DEBUGGING_PORT", "   ")
 

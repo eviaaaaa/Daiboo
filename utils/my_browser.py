@@ -10,10 +10,22 @@ from dotenv import load_dotenv
 load_dotenv()
 
 _PORT_ERROR = "DEBUGGING_PORT must be an integer between 1 and 65535"
+_PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 def _env_text(name: str, default: str) -> str:
     return (os.getenv(name) or "").strip() or default
+
+
+def _env_path(name: str, default: str) -> Path:
+    raw_path = _env_text(name, default)
+    if len(raw_path) >= 3 and raw_path[1] == ":" and raw_path[2] in {"\\", "/"}:
+        return Path(raw_path)
+
+    path = Path(raw_path).expanduser()
+    if path.is_absolute():
+        return path
+    return _PROJECT_ROOT / path
 
 
 def _env_port(name: str, default: str) -> int:
@@ -35,7 +47,7 @@ BROWSER_PATH = _env_text("BROWSER_PATH", r"C:\Program Files (x86)\Microsoft\Edge
 # 或 Chrome: r"C:\Program Files\Google\Chrome\Application\chrome.exe"
 
 # 使用临时目录避免权限问题
-USER_DATA_DIR = Path(_env_text("USER_DATA_DIR", r"C:\playwright_edge_refined"))
+USER_DATA_DIR = _env_path("USER_DATA_DIR", r"C:\playwright_edge_refined")
 DEBUGGING_PORT = _env_port("DEBUGGING_PORT", "9222")
 
 # 用于保存浏览器子进程的全局变量
