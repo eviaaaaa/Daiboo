@@ -32,3 +32,16 @@ def test_frontend_secondary_views_use_dark_console_surfaces():
     assert "text-gray-800" not in html
     assert "class=\"bg-white" not in html
     assert " class=\"bg-white" not in html
+
+
+def test_frontend_has_responsive_mobile_navigation():
+    html = _frontend_html()
+
+    assert "mobile-tab-bar" in html
+    assert "desktop-sidebar" in html
+    assert "pb-24" in html
+    assert "hidden md:flex" in html
+    assert "md:hidden" in html
+    assert "@click=\"currentTab = 'chat'\"" in html
+    assert "@click=\"currentTab = 'upload'\"" in html
+    assert "@click=\"fetchTools(); currentTab = 'tools'\"" in html

@@ -103,9 +103,9 @@
     </style>
 </head>
 <body class="h-screen flex overflow-hidden font-sans app-shell">
-    <div id="app" class="flex w-full h-full app-shell">
+    <div id="app" class="flex w-full h-full app-shell pb-24 md:pb-0">
         <!-- 侧边栏 -->
-        <div class="w-72 linear-panel text-white flex flex-col border-r">
+        <div class="desktop-sidebar hidden md:flex w-72 linear-panel text-white flex-col border-r">
             <div class="p-6 border-b border-white/5">
                 <div class="flex items-center gap-3">
                     <div class="h-10 w-10 rounded-xl bg-indigo-500/20 border border-indigo-300/20 flex items-center justify-center text-indigo-200 font-semibold">NS</div>
@@ -132,10 +132,10 @@
         </div>
 
         <!-- 主内容区 -->
-        <div class="flex-1 flex flex-col overflow-hidden bg-transparent">
+        <div class="flex-1 min-w-0 flex flex-col overflow-hidden bg-transparent">
             
             <!-- 对话视图 -->
-            <div v-if="currentTab === 'chat'" class="flex-1 flex flex-col h-full relative p-6 gap-5">
+            <div v-if="currentTab === 'chat'" class="flex-1 flex flex-col h-full relative p-4 md:p-6 gap-4 md:gap-5">
                 <section class="linear-card hero-gradient rounded-3xl p-6 md:p-8">
                     <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                         <div>
@@ -146,7 +146,7 @@
                             <h1 class="text-3xl md:text-5xl font-semibold tracking-[-0.04em] text-white">NexusSurf 控制台</h1>
                             <p class="mt-3 max-w-2xl text-slate-400 leading-7">在一个页面内完成浏览器自动化对话、RAG 检索调试和工具能力检查。默认同源 API，适配本地和远程部署。</p>
                         </div>
-                        <div class="grid grid-cols-3 gap-3 text-center text-xs text-slate-400">
+                        <div class="grid grid-cols-3 gap-2 md:gap-3 text-center text-xs text-slate-400">
                             <div class="rounded-2xl border border-white/10 bg-black/20 px-4 py-3"><div class="text-lg text-white font-semibold">Chat</div><div>流式对话</div></div>
                             <div class="rounded-2xl border border-white/10 bg-black/20 px-4 py-3"><div class="text-lg text-white font-semibold">RAG</div><div>检索实验</div></div>
                             <div class="rounded-2xl border border-white/10 bg-black/20 px-4 py-3"><div class="text-lg text-white font-semibold">MCP</div><div>工具联动</div></div>
@@ -177,7 +177,7 @@
                     </div>
                 </div>
                 <div class="linear-surface rounded-3xl p-4 border shadow-2xl shadow-black/20">
-                    <div class="max-w-5xl mx-auto flex space-x-4">
+                    <div class="max-w-5xl mx-auto flex flex-col sm:flex-row gap-3 sm:gap-4">
                         <input v-model="userInput" @keyup.enter="sendMessage" type="text" placeholder="输入指令..." class="flex-1 border border-white/10 bg-black/30 text-slate-100 placeholder:text-slate-600 rounded-2xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent shadow-sm transition">
                         <button @click="sendMessage" :disabled="isThinking || !userInput.trim()" class="bg-indigo-600 text-white px-8 py-3 rounded-2xl hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition font-medium">
                             发送
@@ -187,7 +187,7 @@
             </div>
 
             <!-- 上传视图 -->
-            <div v-if="currentTab === 'upload'" class="rag-workbench p-10 overflow-y-auto soft-scrollbar">
+            <div v-if="currentTab === 'upload'" class="rag-workbench p-4 md:p-10 overflow-y-auto soft-scrollbar">
                 <div class="max-w-7xl mx-auto space-y-8">
                     <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                         <div>
@@ -202,7 +202,7 @@
                     </div>
 
                     <div class="grid grid-cols-1 xl:grid-cols-5 gap-8">
-                        <div class="xl:col-span-2 data-surface p-8 rounded-3xl">
+                        <div class="xl:col-span-2 data-surface p-5 md:p-8 rounded-3xl">
                             <div class="flex items-center justify-between mb-6">
                                 <div>
                                     <h3 class="text-xl font-semibold text-white">文档导入</h3>
@@ -241,7 +241,7 @@
                             </div>
                         </div>
 
-                        <div class="xl:col-span-3 data-surface p-8 rounded-3xl text-white">
+                        <div class="xl:col-span-3 data-surface p-5 md:p-8 rounded-3xl text-white">
                             <div class="flex items-center justify-between mb-6">
                                 <div>
                                     <h3 class="text-xl font-bold">检索实验台</h3>
@@ -406,7 +406,7 @@
             </div>
 
             <!-- 工具视图 -->
-            <div v-if="currentTab === 'tools'" class="tools-workbench p-10 overflow-y-auto h-full soft-scrollbar">
+            <div v-if="currentTab === 'tools'" class="tools-workbench p-4 md:p-10 overflow-y-auto h-full soft-scrollbar">
                 <h2 class="text-3xl font-bold mb-8 text-slate-200">可用工具 (Tools)</h2>
                 <div v-if="tools.length === 0" class="text-slate-500">加载中...</div>
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -423,6 +423,24 @@
             </div>
 
         </div>
+
+        <!-- 移动端底部导航 -->
+        <nav class="mobile-tab-bar md:hidden fixed inset-x-3 bottom-3 z-50 rounded-3xl border border-white/10 bg-black/75 p-2 shadow-2xl shadow-black/50 backdrop-blur-xl">
+            <div class="grid grid-cols-3 gap-2 text-xs text-slate-300">
+                <button @click="currentTab = 'chat'" :class="currentTab === 'chat' ? 'nav-item-active' : 'nav-item'" class="rounded-2xl px-3 py-3 transition flex flex-col items-center gap-1">
+                    <span>💬</span>
+                    <span>Chat</span>
+                </button>
+                <button @click="currentTab = 'upload'" :class="currentTab === 'upload' ? 'nav-item-active' : 'nav-item'" class="rounded-2xl px-3 py-3 transition flex flex-col items-center gap-1">
+                    <span>📂</span>
+                    <span>RAG</span>
+                </button>
+                <button @click="fetchTools(); currentTab = 'tools'" :class="currentTab === 'tools' ? 'nav-item-active' : 'nav-item'" class="rounded-2xl px-3 py-3 transition flex flex-col items-center gap-1">
+                    <span>🛠️</span>
+                    <span>Tools</span>
+                </button>
+            </div>
+        </nav>
     </div>
 
     <script>
