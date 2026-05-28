@@ -2,6 +2,7 @@ import uvicorn
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from contextlib import asynccontextmanager
 from langchain.messages import HumanMessage, AIMessage
@@ -89,6 +90,13 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+)
+
+FRONTEND_DIR = Path(__file__).resolve().parent / "frontend"
+app.mount(
+    "/vendor",
+    StaticFiles(directory=FRONTEND_DIR / "vendor"),
+    name="frontend-vendor",
 )
 
 class ChatRequest(BaseModel):
@@ -187,7 +195,7 @@ class ErrorResponse(BaseModel):
 
 @app.get("/", include_in_schema=False)
 async def frontend_index() -> FileResponse:
-    return FileResponse(Path(__file__).resolve().parent / "frontend" / "index.html")
+    return FileResponse(FRONTEND_DIR / "index.html")
 
 
 @app.post(

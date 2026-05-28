@@ -14,6 +14,18 @@ def test_frontend_api_base_uses_same_origin_by_default():
     assert "const API_BASE = window.location.origin" in html
 
 
+def test_frontend_runtime_libraries_are_served_locally():
+    html = _frontend_html()
+
+    assert "https://cdn.tailwindcss.com" not in html
+    assert "https://unpkg.com/vue@3/dist/vue.global.js" not in html
+    assert "https://cdn.jsdelivr.net/npm/marked/marked.min.js" not in html
+    assert "https://cdn.jsdelivr.net/npm/dompurify" not in html
+    assert "vendor/vue.global.js" in html
+    assert "vendor/marked.min.js" in html
+    assert "vendor/purify.min.js" in html
+
+
 def test_frontend_has_linear_inspired_shell_styles():
     html = _frontend_html()
 
