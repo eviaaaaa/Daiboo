@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Any, Union, List
+from threading import Lock
 from langchain_community.document_loaders import (
     TextLoader, 
     PyPDFLoader, 
@@ -7,7 +8,7 @@ from langchain_community.document_loaders import (
     UnstructuredWordDocumentLoader,
     UnstructuredMarkdownLoader
 )
-from sqlalchemy import text, func, select
+from sqlalchemy import text, func, select, inspect
 from sqlalchemy.orm import Session
 from utils import qwen_embeddings
 from database import engine
@@ -21,6 +22,25 @@ from rag.document_chunking import (
     rank_parent_results,
 )
 from rag.hybrid_search_service import HybridSearchService
+
+_schema_lock = Lock()
+_schema_initialized = False
+_SCHEMA_COLUMNS = {
+    "chunk_level",
+    "parent_id",
+    "source_path",
+    "source_name",
+    "chunk_index",
+    "start_index",
+}
+_SCHEMA_INDEXES = {
+    "ix_rag_documents_parent_id",
+    "ix_rag_documents_chunk_level",
+}
+
+def _inspection_engine():
+    return engine._engine() if hasattr(engine, "_engine") else engine
+
 
 def get_loader_for_file(file_path: Path):
     """根据文件后缀返回合适的 Loader"""
@@ -42,23 +62,28 @@ def get_loader_for_file(file_path: Path):
 
 def ensure_rag_document_schema():
     """确保 rag_documents 具备父子块需要的字段和索引。"""
-    RagDocument.metadata.create_all(engine)
+    global _schema_initialized
 
-    ddl_statements = [
-        "ALTER TABLE rag_documents ADD COLUMN IF NOT EXISTS chunk_level TEXT",
-        "ALTER TABLE rag_documents ADD COLUMN IF NOT EXISTS parent_id INTEGER",
-        "ALTER TABLE rag_documents ADD COLUMN IF NOT EXISTS source_path TEXT",
-        "ALTER TABLE rag_documents ADD COLUMN IF NOT EXISTS source_name TEXT",
-        "ALTER TABLE rag_documents ADD COLUMN IF NOT EXISTS chunk_index INTEGER",
-        "ALTER TABLE rag_documents ADD COLUMN IF NOT EXISTS start_index INTEGER",
-        "CREATE INDEX IF NOT EXISTS ix_rag_documents_parent_id ON rag_documents (parent_id)",
-        "CREATE INDEX IF NOT EXISTS ix_rag_documents_chunk_level ON rag_documents (chunk_level)",
-    ]
+    if _schema_initialized:
+        return
 
-    with Session(engine) as session:
-        for ddl in ddl_statements:
-            session.execute(text(ddl))
-        session.commit()
+    with _schema_lock:
+        if _schema_initialized:
+            return
+
+        RagDocument.metadata.create_all(engine)
+        inspector = inspect(_inspection_engine())
+        columns = {column["name"] for column in inspector.get_columns("rag_documents")}
+        indexes = {index["name"] for index in inspector.get_indexes("rag_documents")}
+        if not _SCHEMA_COLUMNS.issubset(columns):
+            missing = ", ".join(sorted(_SCHEMA_COLUMNS - columns))
+            raise RuntimeError(f"rag_documents schema is missing required columns: {missing}")
+
+        if not _SCHEMA_INDEXES.issubset(indexes):
+            missing = ", ".join(sorted(_SCHEMA_INDEXES - indexes))
+            raise RuntimeError(f"rag_documents schema is missing required indexes: {missing}")
+
+        _schema_initialized = True
 
 def _build_rag_document(
     doc,
