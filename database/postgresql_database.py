@@ -7,8 +7,10 @@ import dotenv
 from sqlalchemy import URL, create_engine
 from sqlalchemy.engine import Engine
 
+from utils.config import project_env_file
 
-dotenv.load_dotenv(dotenv_path=os.getenv("NEXUSSURF_ENV_FILE") or os.path.join(os.getcwd(), ".env"))
+
+dotenv.load_dotenv(dotenv_path=os.getenv("NEXUSSURF_ENV_FILE") or project_env_file())
 
 
 def _database_config() -> dict[str, str | None]:
