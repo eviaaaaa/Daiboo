@@ -27,6 +27,20 @@ def test_project_env_file_points_to_repo_root_dotenv() -> None:
     assert config.project_env_file() == Path(__file__).resolve().parents[1] / ".env"
 
 
+def test_load_project_dotenv_uses_repo_root_dotenv(monkeypatch) -> None:
+    config = _load_config_module()
+    calls = []
+
+    def fake_load_dotenv(path, *, override=False):
+        calls.append((path, override))
+        return True
+
+    monkeypatch.setattr(config, "load_dotenv", fake_load_dotenv)
+
+    assert config.load_project_dotenv(override=True) is True
+    assert calls == [(config.project_env_file(), True)]
+
+
 def test_app_host_treats_blank_env_as_default_loopback(monkeypatch) -> None:
     monkeypatch.setenv("HOST", "   ")
     config = _load_config_module()

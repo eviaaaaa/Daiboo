@@ -5,6 +5,8 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 
 _PORT_ERROR = "PORT must be an integer between 1 and 65535"
 
@@ -16,6 +18,11 @@ def project_root() -> Path:
 def project_env_file() -> Path:
     """Return the canonical project-level dotenv file path."""
     return project_root() / ".env"
+
+
+def load_project_dotenv(*, override: bool = False) -> bool:
+    """Load environment variables from the canonical project-level dotenv file."""
+    return load_dotenv(project_env_file(), override=override)
 
 
 def upload_dir() -> Path:
