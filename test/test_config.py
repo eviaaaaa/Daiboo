@@ -21,6 +21,12 @@ def test_app_host_defaults_to_loopback(monkeypatch) -> None:
     assert config.app_host() == "127.0.0.1"
 
 
+def test_project_env_file_points_to_repo_root_dotenv() -> None:
+    config = _load_config_module()
+
+    assert config.project_env_file() == Path(__file__).resolve().parents[1] / ".env"
+
+
 def test_app_host_treats_blank_env_as_default_loopback(monkeypatch) -> None:
     monkeypatch.setenv("HOST", "   ")
     config = _load_config_module()

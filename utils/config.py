@@ -13,6 +13,11 @@ def project_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
+def project_env_file() -> Path:
+    """Return the canonical project-level dotenv file path."""
+    return project_root() / ".env"
+
+
 def upload_dir() -> Path:
     """Return the server-controlled temporary upload directory."""
     configured = Path((os.getenv("UPLOAD_DIR") or "").strip() or "temp_uploads").expanduser()

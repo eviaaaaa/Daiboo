@@ -15,9 +15,10 @@ import asyncio
 import sys
 import pprint
 from dotenv import load_dotenv
+from utils.config import project_env_file
 from utils.qwen_model import normalize_content
 
-load_dotenv(dotenv_path=Path(__file__).resolve().parents[1] / ".env")
+load_dotenv(dotenv_path=project_env_file())
 
 # 为 Playwright 设置 Windows 事件循环策略
 if sys.platform == 'win32':
