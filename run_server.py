@@ -1,15 +1,14 @@
 import uvicorn
 import webbrowser
-from pathlib import Path
 import time
 import threading
 import sys
 import asyncio
 from dotenv import load_dotenv
 
-from utils.config import app_host, app_port
+from utils.config import app_host, app_port, project_env_file
 
-load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env")
+load_dotenv(dotenv_path=project_env_file())
 
 # 为 Playwright 设置 Windows 事件循环策略
 if sys.platform == 'win32':

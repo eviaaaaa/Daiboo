@@ -9,13 +9,12 @@ from langgraph.types import Command
 from utils.my_browser import ensure_browser_running
 from utils.mcp_client import create_persistent_mcp_session
 from utils.agent_factory import create_browser_agent
+from utils.config import project_env_file
 
 if TYPE_CHECKING:
     pass
 
-from pathlib import Path
-
-load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env")
+load_dotenv(dotenv_path=project_env_file())
 
 
 async def ainput(prompt: str = "") -> str:
