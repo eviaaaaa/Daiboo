@@ -15,7 +15,7 @@ import asyncio
 import sys
 import pprint
 from dotenv import load_dotenv
-from utils.config import project_env_file
+from utils.config import app_host, app_port, project_env_file
 from utils.qwen_model import normalize_content
 
 load_dotenv(dotenv_path=project_env_file())
@@ -387,4 +387,4 @@ async def rag_corpus_summary() -> dict[str, Any]:
         raise HTTPException(status_code=500, detail=str(exc))
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8801)
+    uvicorn.run(app, host=app_host(), port=app_port())
