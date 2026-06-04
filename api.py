@@ -325,7 +325,7 @@ async def list_tools() -> list[dict[str, str]]:
 )
 async def upload_document(
     file: UploadFile = File(..., description="待上传并建立索引的文件。")
-) -> dict[str, str]:
+) -> dict[str, Any]:
     """上传文件并写入向量库。"""
 
     temp_dir: Path = upload_dir()
