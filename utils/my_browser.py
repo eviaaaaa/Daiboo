@@ -6,11 +6,13 @@ import os
 import typing
 from dotenv import load_dotenv
 
-# 加载 .env 依赖
-load_dotenv()
+from utils.config import project_env_file, project_root
+
+# 加载项目根目录 .env 依赖
+load_dotenv(dotenv_path=project_env_file())
 
 _PORT_ERROR = "DEBUGGING_PORT must be an integer between 1 and 65535"
-_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+_PROJECT_ROOT = project_root()
 
 
 def _validate_port(port: int) -> int:
