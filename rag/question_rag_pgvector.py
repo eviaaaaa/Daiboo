@@ -118,4 +118,4 @@ def save_agent_trace_to_pgvector(trace: AgentTrace):
             print(f"Agent trace logged to database with ID: {trace.id}")
     except Exception as e:
         print(f"Failed to log agent trace to database: {e}")
-        raise e
+        raise

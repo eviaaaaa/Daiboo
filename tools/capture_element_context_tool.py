@@ -395,7 +395,7 @@ class CaptureElementContextTool(BaseTool):
             except Exception as e:
                 # 如果带 clip 的截图失败（例如区域超出视口），尝试截取全屏或报错
                 logger.error(f"截图失败: {e}")
-                raise e
+                raise
             
             # 7. （可选）提取周围文本
             surrounding_text = ""
