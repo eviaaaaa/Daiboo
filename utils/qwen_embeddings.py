@@ -99,3 +99,13 @@ class QwenEmbeddings(Embeddings):
         return self._embed_texts([text], text_type="query")[0]
 
 qwen_embeddings = QwenEmbeddings()
+
+
+def embed_documents(texts: list[str]) -> list[list[float]]:
+    """Compatibility wrapper for callers that import this module directly."""
+    return qwen_embeddings.embed_documents(texts)
+
+
+def embed_query(text: str) -> list[float]:
+    """Compatibility wrapper for callers that import this module directly."""
+    return qwen_embeddings.embed_query(text)

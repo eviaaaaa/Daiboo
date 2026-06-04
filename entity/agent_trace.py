@@ -112,6 +112,7 @@ class AgentTrace(Base, SearchableMixin):
     session_id: Mapped[Optional[str]] = mapped_column(
         String(100),
         nullable=True,
+        default=None,
         index=True,
         comment="用于归组对话轮次的会话标识"
     )
