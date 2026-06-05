@@ -31,7 +31,13 @@ NexusSurf 通过 **@playwright/mcp** + LangChain/LangGraph 组合，实现可交
 
 ### 2. 安装依赖
 
-推荐安装方式：
+推荐使用 uv（快，锁定版本）：
+
+```bash
+uv sync --group dev
+```
+
+或使用传统 pip：
 
 ```powershell
 conda create -n langchainenv python=3.11 -y
