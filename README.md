@@ -78,6 +78,15 @@ cp .env.example .env
 - 浏览器控制：`BROWSER_PATH`、`USER_DATA_DIR`、`DEBUGGING_PORT`
 - Web 服务可选项：`HOST`（默认 `127.0.0.1`）、`PORT`（默认 `8801`，范围 `1..65535`）、`UPLOAD_DIR`（默认 `temp_uploads/`）
 
+可选增强（不配置不影响运行）：
+
+- API 安全：`NAXUSSURF_API_KEY`（设置即启用 X-API-Key 认证）、`RATE_LIMIT`（默认 60 req/60s，设 0 关闭）
+- 日志：`LOG_LEVEL`（debug/info/warning/error，默认 info）、`LOG_FORMAT`（pretty/json）
+- Skills 目录：`NAXUSSURF_SKILLS_DIR`（默认 `skills/`）
+- 会话持久化：`NAXUSSURF_CHECKPOINT_DIR`（SQLite checkpoint，默认 `data/`）
+
+详见 `.env.example` 中注释。
+
 ## 启动方式
 
 ### 1. Web 服务模式（推荐）
