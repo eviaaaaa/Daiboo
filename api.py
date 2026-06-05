@@ -18,10 +18,13 @@ import asyncio
 import sys
 import pprint
 from dotenv import load_dotenv
+from loguru import logger
 from utils.config import app_host, app_port, project_env_file
+from utils.logging import setup_logging
 from utils.qwen_model import normalize_content
 
 load_dotenv(dotenv_path=project_env_file())
+setup_logging()
 
 # 为 Playwright 设置 Windows 事件循环策略
 if sys.platform == 'win32':
@@ -61,11 +64,11 @@ _mcp_session_cleanup: Any | None = None
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # 确保浏览器进程运行
-    print("Ensuring browser is running...")
+    logger.info("Ensuring browser is running...")
     await ensure_browser_running()
 
     # 使用持久 MCP 会话
-    print("Starting persistent MCP session...")
+    logger.info("Starting persistent MCP session...")
     async with create_persistent_mcp_session() as mcp_tools:
         state.mcp_tools = mcp_tools
 
@@ -73,18 +76,18 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         db_dir = Path(os.getenv("NAXUSSURF_CHECKPOINT_DIR", str(Path(__file__).resolve().parent / "data")))
         db_dir.mkdir(parents=True, exist_ok=True)
         db_path = str(db_dir / "agent_checkpoints.db")
-        print(f"Opening checkpoint DB: {db_path}")
+        logger.info("Opening checkpoint DB: {}", db_path)
 
         with SqliteSaver.from_conn_string(db_path) as checkpointer:
             # 创建 Agent
-            print("Creating Agent...")
+            logger.info("Creating Agent...")
             state.agent = await create_browser_agent(mcp_tools, checkpointer=checkpointer)
 
-            print("System initialized and ready.")
+            logger.info("System initialized and ready.")
             yield
 
     # 退出 async with 后 MCP subprocess 自动清理
-    print("MCP session cleaned up.")
+    logger.info("MCP session cleaned up.")
 
 app = FastAPI(
     lifespan=lifespan,
@@ -103,6 +106,17 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# HTTP 请求日志中间件
+@app.middleware("http")
+async def log_requests(request, call_next):
+    resp = await call_next(request)
+    logger.bind(
+        method=request.method,
+        path=request.url.path,
+        status_code=resp.status_code,
+    ).info("request")
+    return resp
 
 FRONTEND_DIR = Path(__file__).resolve().parent / "frontend"
 app.mount(

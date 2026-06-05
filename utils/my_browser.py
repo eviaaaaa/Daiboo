@@ -5,6 +5,7 @@ import atexit
 import os
 import typing
 from dotenv import load_dotenv
+from loguru import logger
 
 from utils.config import project_env_file, project_root
 
@@ -77,14 +78,14 @@ def cleanup_browser():
     """atexit 清理函数：如果是由本脚本启动的浏览器，则关闭它。"""
     global browser_process
     if browser_process:
-        print("\n脚本退出，正在关闭由本脚本启动的浏览器进程...")
+        logger.info("脚本退出，正在关闭由本脚本启动的浏览器进程...")
         browser_process.terminate()  # 发送终止信号
         try:
             # 等待进程终止，设置超时
             browser_process.wait(timeout=5)
-            print("浏览器进程已关闭。")
+            logger.info("浏览器进程已关闭。")
         except subprocess.TimeoutExpired:
-            print("关闭浏览器超时，强制终止。")
+            logger.warning("关闭浏览器超时，强制终止。")
             browser_process.kill()  # 如果 terminate 不起作用，则强制杀死
         browser_process = None
 
@@ -99,11 +100,11 @@ async def ensure_browser_running(port: int = None):
     """确保浏览器进程运行在指定端口（仅启动进程，不返回 Browser 对象）"""
     port = DEBUGGING_PORT if port is None else _validate_port(port)
     if await check_port_in_use(port):
-        print(f"端口 {port} 已有浏览器运行，跳过启动。")
+        logger.info("端口 {} 已有浏览器运行，跳过启动。", port)
         return
 
     global browser_process
-    print(f"端口 {port} 空闲，正在启动新的浏览器实例...")
+    logger.info("端口 {} 空闲，正在启动新的浏览器实例...", port)
     os.makedirs(USER_DATA_DIR, exist_ok=True)
     cmd = [
         BROWSER_PATH,
@@ -118,13 +119,13 @@ async def ensure_browser_running(port: int = None):
         "--headless=new",
         "--start-maximized"
     ]
-    print("启动命令:", " ".join(f'"{c}"' if " " in c else c for c in cmd))
+    logger.debug("浏览器启动命令: {}", " ".join(f'"{c}"' if " " in c else c for c in cmd))
     browser_process = subprocess.Popen(cmd)
 
-    print("等待浏览器启动并开启调试端口...")
+    logger.info("等待浏览器启动并开启调试端口...")
     for _ in range(20):
         if await check_port_in_use(port):
-            print("浏览器实例已就绪。")
+            logger.info("浏览器实例已就绪。")
             return
         await asyncio.sleep(0.5)
 
