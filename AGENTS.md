@@ -104,6 +104,15 @@
 - `api.py` 已加入 HTTP 请求日志中间件（`method`/`path`/`status_code` 绑定到 `extra`）。
 - 测试参见 `test/test_logging.py`。
 
+## 7.5 当前仓库已知事实（2026-06-05 更新 — API 认证/限流）
+
+- 新增 `utils/auth.py`：`AuthMiddleware`（BaseHTTPMiddleware），统一认证 + 限流。
+- **认证**：通过 `NAXUSSURF_API_KEY` 环境变量启用。设置后，所有请求须携带 `X-API-Key` header 匹配该值；不设则认证关闭（向后兼容）。
+- **免鉴权路径**：`/health`、`/`、`/vendor/*` 始终跳过认证。
+- **限流**：滑动窗口算法，进程内内存计数（重启重置）。通过 `RATE_LIMIT`（默认 60）和 `RATE_LIMIT_WINDOW`（默认 60s）控制；`RATE_LIMIT=0` 关闭限流。
+- 中间件顺序：CORS → Auth → HTTP Logging。
+- 测试参见 `test/test_auth.py`（12 个测试）。
+
 ## 8. 执行偏好
 
 - 小步修改，优先最小可验证变更。
