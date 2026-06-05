@@ -10,6 +10,14 @@ authors = [
 ]
 keywords = ["browser-automation", "ai-agent", "playwright", "llm", "langgraph", "mcp"]
 
+[project.urls]
+Homepage = "https://github.com/eviaaaaa/NaxusSurf"
+Repository = "https://github.com/eviaaaaa/NaxusSurf.git"
+
+[project.scripts]
+naxussurf = "main:main"          # CLI 交互模式: naxussurf
+naxussurf-serve = "api:app"      # Web 服务: naxussurf-serve (uvicorn)
+
 dependencies = [
     "dashscope>=1.25",
     "fastapi>=0.125",
@@ -52,6 +60,13 @@ dev = [
 
 [dependency-groups]
 dev = [
+    "pytest>=9",
+    "pytest-asyncio>=1.3",
+    "vcrpy>=8.0",
+]
+
+[tool.uv]
+dev-dependencies = [
     "pytest>=9",
     "pytest-asyncio>=1.3",
     "vcrpy>=8.0",

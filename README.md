@@ -91,19 +91,26 @@ cp .env.example .env
 
 ### 1. Web 服务模式（推荐）
 
-```powershell
+```bash
+# 直接启动
 python run_server.py
+
+# 或用 uv run（自动激活 venv + 安装缺失依赖）
+uv run naxussurf-serve
 ```
 
 启动后：
 
 - API 默认监听 `http://127.0.0.1:8801`（可用 `.env` 里的 `HOST` / `PORT` 覆盖）
-- 会自动打开 `frontend/index.html`
+- `run_server.py` 会自动打开 `frontend/index.html`
 
 ### 2. CLI 模式
 
-```powershell
+```bash
 python main.py
+
+# 或
+uv run naxussurf
 ```
 
 支持命令：
@@ -147,8 +154,11 @@ Agent 在每次对话中可见的工具分两类：
 
 ## 测试
 
-```powershell
-conda activate langchainenv
+```bash
+# 使用 uv（自动激活 venv）
+uv run pytest
+
+# 或直接
 pytest
 ```
 
