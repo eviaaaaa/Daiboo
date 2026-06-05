@@ -29,6 +29,7 @@ from utils.mcp_client import create_persistent_mcp_session
 from utils.agent_factory import create_browser_agent, get_agent_tools
 from utils.upload_paths import build_safe_upload_path
 from utils.config import upload_dir
+from utils.skills import get_skill_by_name, load_skills
 from rag.document_rag_pgvector import (
     debug_query_document_from_pgvector,
     get_rag_corpus_summary,
@@ -311,6 +312,68 @@ async def list_tools() -> list[dict[str, str]]:
     # 直接使用缓存的工具列表，不再创建新 subprocess
     tools = get_agent_tools(state.mcp_tools)
     return [{"name": t.name, "description": t.description} for t in tools]
+
+
+class SkillSummary(BaseModel):
+    """技能概要信息。"""
+
+    name: str = Field(..., description="技能名称。")
+    description: str = Field(..., description="技能用途说明。")
+    version: str = Field("0.0.0", description="技能版本号。")
+    path: str = Field("", description="技能目录本地路径。")
+    tags: list[str] | None = Field(None, description="技能标签列表。")
+
+
+class SkillDetail(SkillSummary):
+    """技能详情。"""
+
+    content: str = Field(..., description="技能完整 Markdown 正文。")
+
+
+@app.get(
+    "/skills",
+    summary="获取可用技能列表",
+    description="返回当前已加载的所有技能名称、描述和版本信息。",
+    response_model=list[SkillSummary],
+    tags=["skills"],
+)
+async def list_skills_endpoint() -> list[dict[str, Any]]:
+    """列出所有可用的 Skills。"""
+    skills = load_skills()
+    return [
+        {
+            "name": s.name,
+            "description": s.description,
+            "version": s.version,
+            "path": s.path,
+            "tags": s.tags,
+        }
+        for s in skills
+    ]
+
+
+@app.get(
+    "/skills/{name}",
+    summary="获取技能详情",
+    description="返回指定技能的完整内容，包括 frontmatter 元数据和 Markdown 正文。",
+    response_model=SkillDetail,
+    responses={404: {"model": ErrorResponse, "description": "未找到该技能。"}},
+    tags=["skills"],
+)
+async def view_skill_endpoint(name: str) -> dict[str, str]:
+    """加载并返回技能完整内容。"""
+    skill = get_skill_by_name(name)
+    if skill is None:
+        raise HTTPException(status_code=404, detail=f"Skill '{name}' not found")
+    return {
+        "name": skill.name,
+        "description": skill.description,
+        "version": skill.version,
+        "path": skill.path,
+        "tags": skill.tags,
+        "content": skill.content,
+    }
+
 
 @app.post(
     "/upload",

@@ -21,8 +21,10 @@ from tools import (
     WebObserveTool,
     HCaptchaSolverTool,
     delay_tool_call,
+    list_skills,
     search_documents,
-    search_task_experience
+    search_task_experience,
+    view_skill,
 )
 from tools.terminal_tools import terminal_read, terminal_write
 from utils.qwen_model import (
@@ -45,6 +47,8 @@ def get_agent_tools(mcp_tools: Any, screenshot_helper: Any = None) -> list[Any]:
         screenshot_helper: ScreenshotHelper 实例，供 CaptureElementContextTool 使用
     """
     return [
+        list_skills,                                                # Skills: list available
+        view_skill,                                                 # Skills: load specific
         *mcp_tools,                                                  # MCP 浏览器工具
         CaptureElementContextTool(helper=screenshot_helper),         # 重写版
         VLAnalysisTool(),                                            # 保留
