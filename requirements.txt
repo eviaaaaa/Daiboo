@@ -30,3 +30,4 @@ vcrpy==8.0.0
 hcaptcha-challenger>=0.18.13
 langchain-openai>=0.3.0
 loguru>=0.7.3
+langgraph-checkpoint-sqlite>=2.0

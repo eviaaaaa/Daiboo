@@ -35,6 +35,7 @@ from utils.qwen_model import (
 
 if TYPE_CHECKING:
     from langgraph.graph.state import CompiledStateGraph
+    from langgraph.checkpoint.base import BaseCheckpointSaver
 
 # 单例缓存
 _agent_cache: dict[str, "CompiledStateGraph"] = {}
@@ -65,6 +66,7 @@ async def create_browser_agent(
     screenshot_helper: Any = None,
     model_name: str = "qwen3.5-plus",
     enable_thinking: bool = True,
+    checkpointer: Any = None,
 ) -> "CompiledStateGraph":
     """
     创建并配置浏览器自动化 Agent（单例模式）
@@ -74,6 +76,8 @@ async def create_browser_agent(
         screenshot_helper: ScreenshotHelper 实例
         model_name: 使用的模型名称
         enable_thinking: 是否启用思考模式
+        checkpointer: 可选的外部 checkpointer（如 SqliteSaver）。
+                      未提供时使用 InMemorySaver（重启后会话丢失）。
     """
     # 创建缓存键，基于模型参数
     cache_key = f"{model_name}_{enable_thinking}"
@@ -115,11 +119,14 @@ async def create_browser_agent(
     # 必须用工厂构造，因为它要持有当前 MCP session 的工具列表（含 browser_evaluate）
     diff_middleware = make_diff_middleware(mcp_tools)
 
+    # 选择 checkpointer：外部提供（如 SqliteSaver）> InMemorySaver
+    _checkpointer = checkpointer if checkpointer is not None else InMemorySaver()
+
     # 创建 Agent（最耗时的操作）
     browser_agent = agents.create_agent(
         system_prompt=system_prompt.system_prompt,
         state_schema=MyState,
-        checkpointer=InMemorySaver(),
+        checkpointer=_checkpointer,
         model=model,
         tools=tools,
         middleware=[

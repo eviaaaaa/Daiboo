@@ -5,11 +5,14 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from contextlib import asynccontextmanager
+from pathlib import Path
 from langchain.messages import HumanMessage, AIMessage
 from langgraph.types import Command
+from langgraph.checkpoint.sqlite import SqliteSaver
 from typing import TYPE_CHECKING, Any, AsyncIterator, Optional
 import json
 import shutil
+import os
 from pathlib import Path
 import asyncio
 import sys
@@ -66,12 +69,19 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     async with create_persistent_mcp_session() as mcp_tools:
         state.mcp_tools = mcp_tools
 
-        # 创建 Agent
-        print("Creating Agent...")
-        state.agent = await create_browser_agent(mcp_tools)
+        # SQLite checkpointer：会话跨重启持久化
+        db_dir = Path(os.getenv("NAXUSSURF_CHECKPOINT_DIR", str(Path(__file__).resolve().parent / "data")))
+        db_dir.mkdir(parents=True, exist_ok=True)
+        db_path = str(db_dir / "agent_checkpoints.db")
+        print(f"Opening checkpoint DB: {db_path}")
 
-        print("System initialized and ready.")
-        yield
+        with SqliteSaver.from_conn_string(db_path) as checkpointer:
+            # 创建 Agent
+            print("Creating Agent...")
+            state.agent = await create_browser_agent(mcp_tools, checkpointer=checkpointer)
+
+            print("System initialized and ready.")
+            yield
 
     # 退出 async with 后 MCP subprocess 自动清理
     print("MCP session cleaned up.")
