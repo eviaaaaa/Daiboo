@@ -344,6 +344,7 @@ async def chat(request: ChatRequest) -> StreamingResponse:
                 yield f"{data}\n"
 
         except Exception as e:
+            logger.exception("Chat streaming error for thread {}", request.thread_id)
             data = json.dumps({"type": "error", "content": str(e)}, ensure_ascii=False)
             yield f"{data}\n"
 
@@ -464,6 +465,7 @@ async def upload_document(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as e:
+        logger.exception("Document upload/indexing failed for {}", file.filename or "unknown")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -485,6 +487,7 @@ async def debug_rag_search(request: RagSearchRequest) -> dict[str, Any]:
             request.use_rerank,
         )
     except Exception as exc:
+        logger.exception("RAG search failed for query: {}", request.query[:100])
         raise HTTPException(status_code=500, detail=str(exc))
 
 
@@ -499,6 +502,7 @@ async def rag_corpus_summary() -> dict[str, Any]:
     try:
         return await asyncio.to_thread(get_rag_corpus_summary)
     except Exception as exc:
+        logger.exception("RAG corpus summary failed")
         raise HTTPException(status_code=500, detail=str(exc))
 
 if __name__ == "__main__":
