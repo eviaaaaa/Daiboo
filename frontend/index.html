@@ -205,6 +205,9 @@
                 <button @click="fetchTools(); currentTab = 'tools'" :class="currentTab === 'tools' ? 'nav-item-active' : 'nav-item'" class="w-full text-left px-4 py-3 rounded-xl transition duration-200 flex items-center">
                     <span class="mr-3">🛠️</span> 工具列表 (Tools)
                 </button>
+                <button @click="fetchSkills(); currentTab = 'skills'" :class="currentTab === 'skills' ? 'nav-item-active' : 'nav-item'" class="w-full text-left px-4 py-3 rounded-xl transition duration-200 flex items-center">
+                    <span class="mr-3">📚</span> 技能库 (Skills)
+                </button>
             </nav>
             <div class="p-4 text-xs text-slate-500 border-t border-white/5">
                 Session: {{ threadId }}
@@ -520,11 +523,57 @@
                 </div>
             </div>
 
+            <!-- 技能视图 -->
+            <div v-if="currentTab === 'skills'" class="skills-workbench p-4 md:p-10 overflow-y-auto h-full soft-scrollbar">
+                <div class="max-w-7xl mx-auto space-y-8">
+                    <div class="mb-8 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                        <div>
+                            <h2 class="text-3xl font-bold text-slate-200">技能库 (Skills)</h2>
+                            <p class="mt-2 text-sm text-slate-500">预置的专项知识模块。Agent 对话时会先用 list_skills 查看，再按需用 view_skill 加载。</p>
+                        </div>
+                        <button @click="fetchSkills" :disabled="isLoadingSkills" class="rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-200 hover:bg-white/5 disabled:opacity-50">
+                            {{ isLoadingSkills ? '加载中...' : '刷新' }}
+                        </button>
+                    </div>
+                    <div v-if="isLoadingSkills" class="skills-loading-state data-surface rounded-3xl p-8 text-slate-400">
+                        正在加载技能列表...
+                    </div>
+                    <div v-else-if="skillsError" class="skills-error-state rounded-3xl border border-red-400/30 bg-red-500/10 p-6 text-red-200">
+                        <div class="font-semibold">技能列表加载失败</div>
+                        <div class="mt-2 text-sm text-red-100/80">{{ skillsError }}</div>
+                        <button @click="fetchSkills" class="mt-4 rounded-xl border border-red-300/30 px-4 py-2 text-sm hover:bg-red-400/10">重试</button>
+                    </div>
+                    <div v-else-if="skills.length === 0" class="skills-empty-state data-surface rounded-3xl p-8 text-slate-400">
+                        暂无技能。在 <code class="text-indigo-300 bg-white/5 px-1 rounded">skills/</code> 目录下添加 SKILL.md 文件即可。
+                    </div>
+                    <div v-else class="space-y-4">
+                        <div v-for="skill in skills" :key="skill.name" class="data-surface rounded-2xl overflow-hidden">
+                            <button @click="toggleSkill(skill.name)" class="w-full text-left p-5 flex items-center justify-between hover:bg-white/[0.03] transition">
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center gap-3 flex-wrap">
+                                        <h3 class="text-lg font-semibold text-white">{{ skill.name }}</h3>
+                                        <span v-if="skill.version && skill.version !== '0.0.0'" class="px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-200 border border-indigo-300/20 text-xs">{{ skill.version }}</span>
+                                        <span v-for="tag in (skill.tags || [])" :key="tag" class="px-2 py-0.5 rounded-full bg-white/5 text-slate-400 border border-white/10 text-xs">{{ tag }}</span>
+                                    </div>
+                                    <p class="text-sm text-slate-400 mt-1">{{ skill.description }}</p>
+                                </div>
+                                <span class="text-slate-500 ml-4 text-lg">{{ expandedSkill === skill.name ? '▾' : '▸' }}</span>
+                            </button>
+                            <div v-if="expandedSkill === skill.name" class="border-t border-white/5 px-5 py-4">
+                                <div v-if="loadingSkillContent === skill.name" class="text-slate-400 text-sm py-4">加载中...</div>
+                                <div v-else-if="skillContentError" class="text-red-300 text-sm py-4">{{ skillContentError }}</div>
+                                <div v-else class="markdown-body max-w-none" v-html="renderMarkdown(skillDetail || '')"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
         </div>
 
         <!-- 移动端底部导航 -->
         <nav class="mobile-tab-bar md:hidden fixed inset-x-3 bottom-3 z-50 rounded-3xl border border-white/10 bg-black/75 p-2 shadow-2xl shadow-black/50 backdrop-blur-xl">
-            <div class="grid grid-cols-3 gap-2 text-xs text-slate-300">
+            <div class="grid grid-cols-4 gap-2 text-xs text-slate-300">
                 <button @click="currentTab = 'chat'" :class="currentTab === 'chat' ? 'nav-item-active' : 'nav-item'" class="rounded-2xl px-3 py-3 transition flex flex-col items-center gap-1">
                     <span>💬</span>
                     <span>Chat</span>
@@ -536,6 +585,10 @@
                 <button @click="fetchTools(); currentTab = 'tools'" :class="currentTab === 'tools' ? 'nav-item-active' : 'nav-item'" class="rounded-2xl px-3 py-3 transition flex flex-col items-center gap-1">
                     <span>🛠️</span>
                     <span>Tools</span>
+                </button>
+                <button @click="fetchSkills(); currentTab = 'skills'" :class="currentTab === 'skills' ? 'nav-item-active' : 'nav-item'" class="rounded-2xl px-3 py-3 transition flex flex-col items-center gap-1">
+                    <span>📚</span>
+                    <span>Skills</span>
                 </button>
             </div>
         </nav>
@@ -568,6 +621,13 @@
                 const ragError = ref('');
                 const ragSummary = ref(null);
                 const ragSummaryError = ref('');
+                const skills = ref([]);
+                const isLoadingSkills = ref(false);
+                const skillsError = ref('');
+                const expandedSkill = ref('');
+                const loadingSkillContent = ref('');
+                const skillDetail = ref('');
+                const skillContentError = ref('');
 
                 const asIndentedCodeBlock = (text) => {
                     const normalized = String(text || '').replace(/\r\n/g, '\n');
@@ -773,6 +833,49 @@
                     ragQuery.value = '';
                 };
 
+                const fetchSkills = async () => {
+                    isLoadingSkills.value = true;
+                    skillsError.value = '';
+                    try {
+                        const res = await fetch(`${API_BASE}/skills`);
+                        if (!res.ok) {
+                            const err = await res.json().catch(() => ({}));
+                            throw new Error(err.detail || '技能列表接口调用失败');
+                        }
+                        skills.value = await res.json();
+                    } catch (e) {
+                        skillsError.value = e.message || '技能列表加载失败';
+                        skills.value = [];
+                    } finally {
+                        isLoadingSkills.value = false;
+                    }
+                };
+
+                const toggleSkill = async (name) => {
+                    if (expandedSkill.value === name) {
+                        expandedSkill.value = '';
+                        skillDetail.value = '';
+                        return;
+                    }
+                    expandedSkill.value = name;
+                    skillDetail.value = '';
+                    skillContentError.value = '';
+                    loadingSkillContent.value = name;
+                    try {
+                        const res = await fetch(`${API_BASE}/skills/${encodeURIComponent(name)}`);
+                        if (!res.ok) {
+                            const err = await res.json().catch(() => ({}));
+                            throw new Error(err.detail || '技能详情加载失败');
+                        }
+                        const data = await res.json();
+                        skillDetail.value = data.content || '';
+                    } catch (e) {
+                        skillContentError.value = e.message || '加载失败';
+                    } finally {
+                        loadingSkillContent.value = '';
+                    }
+                };
+
                 fetchRagSummary();
 
                 return {
@@ -804,7 +907,16 @@
                     ragSummaryError,
                     runRagSearch,
                     clearRagSearch,
-                    fetchRagSummary
+                    fetchRagSummary,
+                    skills,
+                    isLoadingSkills,
+                    skillsError,
+                    expandedSkill,
+                    loadingSkillContent,
+                    skillDetail,
+                    skillContentError,
+                    fetchSkills,
+                    toggleSkill
                 };
             }
         }).mount('#app');

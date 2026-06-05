@@ -104,6 +104,7 @@ Agent 在每次对话中可见的工具分两类：
 
 **本仓库自定义工具**（在 `tools/` 下）：
 
+- `list_skills` / `view_skill`：Skill 技能系统。`list_skills` 列出所有可用技能及描述，`view_skill(name)` 加载完整技能内容。Agent 每次任务前应先调用 `list_skills` 查看有无匹配技能。
 - `web_observe`：基于 simphtml 的 LLM-friendly 页面观察。**跨 iframe 与 Shadow DOM 内容内联**、自动剔除浮窗广告、字符预算可控（默认 35000）、表单当前值落入属性。与 `browser_snapshot` 共存，不替换。
   - `text_only=True`：纯文本输出，最省 token，适合"快速看页面写了啥"
   - `text_only=False`（默认）：简化 HTML 输出，保留结构便于后续 `browser_snapshot` 拿 ref 操作
@@ -124,6 +125,8 @@ Agent 在每次对话中可见的工具分两类：
 
 - `POST /chat`：发送消息并流式返回执行结果
 - `GET /tools`：列出可用工具
+- `GET /skills`：列出所有可用 Skills（名称、描述、版本、标签）
+- `GET /skills/{name}`：加载指定 Skill 完整内容
 - `POST /upload`：上传 PDF、DOC、DOCX、Markdown、TXT 等文档并写入向量库，响应里包含本次生成的 `total_parents` 和 `total_children`
 - `POST /rag/search`：调试 RAG 检索，返回大块、小块和层级聚合结果，以及相关 chunk 明细
 
@@ -158,6 +161,31 @@ conda run -n langchainenv python test/manual/hcaptcha_demo_manual.py --prompt v4
 - 浏览器未启动 / CDP 连接被拒绝：检查 `.env` 中 `BROWSER_PATH` 和 `DEBUGGING_PORT` 配置，确保浏览器以 `--remote-debugging-port` 启动；Linux/headless 环境会自动附加 `--headless=new`、`--no-sandbox` 等参数。
 - `PORT must be an integer between 1 and 65535`：检查 `.env` 中 `PORT` 是否为空、非数字或超出端口范围。
 - `solve_hcaptcha` 返回 `missing_*_api_key`：检查 `.env` 是否配置 `LLM_PROVIDER=glm + GLM_API_KEY`，或配置可直连的 `GEMINI_API_KEY`。
+
+## 技能系统 (Skills)
+
+Skills 是预置的专项知识模块，Agent 按需加载。每个 Skill 是一个 `skills/<name>/SKILL.md` 文件，包含 YAML frontmatter 和 Markdown 正文。
+
+### 添加新 Skill
+
+在 `skills/` 下创建子目录，放入 `SKILL.md`：
+
+```markdown
+---
+name: my-skill
+description: "技能描述"
+version: 1.0.0
+tags: [tag1, tag2]
+---
+
+# 技能内容
+
+详细步骤、命令、陷阱等...
+```
+
+Skills 目录可通过环境变量 `NAXUSSURF_SKILLS_DIR` 覆盖（默认 `skills/`）。
+
+服务启动后自动扫描；前端 Skills 页面可查看列表和详情；Agent 在对话中通过 `list_skills` → `view_skill(name)` 加载。
 
 ## 文档分工
 

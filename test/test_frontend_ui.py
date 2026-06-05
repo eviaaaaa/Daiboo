@@ -57,6 +57,7 @@ def test_frontend_has_responsive_mobile_navigation():
     assert "@click=\"currentTab = 'chat'\"" in html
     assert "@click=\"currentTab = 'upload'\"" in html
     assert "@click=\"fetchTools(); currentTab = 'tools'\"" in html
+    assert "@click=\"fetchSkills(); currentTab = 'skills'\"" in html
 
 
 def test_frontend_markdown_is_readable_in_dark_agent_messages():
@@ -81,3 +82,18 @@ def test_frontend_tools_view_has_loading_error_and_empty_states():
     assert "tools-loading-state" in html
     assert "重新加载" in html
     assert "throw new Error(err.detail || '工具列表接口调用失败')" in html
+
+
+def test_frontend_skills_view_has_loading_error_and_empty_states():
+    html = _frontend_html()
+
+    assert "skills-workbench" in html
+    assert "isLoadingSkills" in html
+    assert "skillsError" in html
+    assert "skills-empty-state" in html
+    assert "skills-error-state" in html
+    assert "skills-loading-state" in html
+    assert "技能库 (Skills)" in html
+    assert "toggleSkill" in html
+    assert "expandedSkill" in html
+    assert "encodeURIComponent(name)" in html

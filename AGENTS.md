@@ -11,7 +11,7 @@
 ## 2. 真实入口（修改前先核对）
 
 - `main.py`: CLI 会话入口。
-- `api.py`: FastAPI 服务入口（`/chat`、`/tools`、`/upload`）。
+- `api.py`: FastAPI 服务入口（`/chat`、`/tools`、`/skills`、`/upload`）。
 - `run_server.py`: 启动 API 并打开前端页面。
 
 如需求影响入口行为，必须同步核对并更新相关说明。
@@ -32,6 +32,10 @@
 - `tools/_simphtml/`: web_observe 工具与 diff middleware 的共享内部模块（`opthtml.js`、`find_main_list.js`、`observer.py`、`post_process.py`、`diff.py`），算法源自 GenericAgent (MIT)，详见 `docx/genericagent_investigation.md`。
 - `rag/`: 检索与向量相关逻辑。
 - `loggers/`: 记录、经验总结、diff 中间件（`diff_middleware.py` 给 MCP 写动作自动附 DOM diff + 瞬时文本）。
+- `skills/`: Skills 技能目录。每个子目录包含一个 `SKILL.md`（YAML frontmatter + Markdown body）。加载逻辑在 `utils/skills.py`，Agent 工具在 `tools/skill_tools.py`。
+- `utils/skills.py`: Skills 加载模块（扫描、YAML 解析、缓存、便捷格式化）。
+- `tools/skill_tools.py`: Skills Agent 工具（`list_skills`、`view_skill`）。
+- `frontend/index.html`: 单文件 Vue.js SPA，含 Chat / RAG / Tools / Skills 四个标签页。
 
 仅在边界明确时修改，跨模块改动需检查调用链是否一致。
 
@@ -78,6 +82,15 @@
 - 手动测试已归入 `test/manual/`；`test/manual/README.md` 记录 MCP smoke、VL 分析、middleware logging、Epic 登录和 hCaptcha demo 的手动用法。
 - `test/manual/hcaptcha_demo_manual.py` 是 hCaptcha demo 联调脚本；`test/test_hcaptcha_solver_classification.py` 覆盖 hCaptcha 题型/响应归一化相关回归。
 - `tmp/` 已加入 `.gitignore`，用于临时产物，不应作为稳定运行目录写入文档承诺。
+
+## 7.3 当前仓库已知事实（2026-06 更新）
+
+- 新增 Skills 技能系统：`skills/` 目录存放 `SKILL.md` 文件，`utils/skills.py` 扫描/解析/缓存，`tools/skill_tools.py` 提供 `list_skills` 和 `view_skill` 工具。
+- Agent 系统提示词已加入第 9 节 Skills 使用规则；Agent 每次任务前应先 `list_skills`，有匹配时用 `view_skill(name)` 加载完整内容再执行。
+- API 新增 `GET /skills`（列表）和 `GET /skills/{name}`（详情）端点。
+- 前端新增 Skills 标签页：可查看技能列表、标签、版本，点击展开加载完整 Markdown 内容。
+- Skills 目录可通过 `NAXUSSURF_SKILLS_DIR` 环境变量覆盖，默认 `skills/`。
+- 当前已有一个示例技能：`naxussurf-dev`（NaxusSurf 项目架构与开发指南）。
 
 ## 8. 执行偏好
 
