@@ -47,7 +47,7 @@ def test_embedding_uses_openai_compatible_provider_when_configured(monkeypatch):
     assert calls[0][1]["model"] == "text-embedding-3-small"
 
 
-def test_embedding_falls_back_to_dashscope_without_openai_key(monkeypatch):
+def test_embedding_uses_dashscope_when_dashscope_key_set(monkeypatch):
     calls = []
 
     class FakeTextEmbedding:
@@ -62,9 +62,25 @@ def test_embedding_falls_back_to_dashscope_without_openai_key(monkeypatch):
     fake_dashscope = types.SimpleNamespace(TextEmbedding=FakeTextEmbedding)
     monkeypatch.setitem(sys.modules, "dashscope", fake_dashscope)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setenv("DASHSCOPE_API_KEY", "test-dashscope-key")
 
     module = _load_embeddings_module()
 
     assert module.QwenEmbeddings().embed_query("hello") == [1.0] * 1536
     assert calls[0]["model"] == "text-embedding-v1"
     assert calls[0]["text_type"] == "query"
+
+
+def test_embedding_falls_back_to_local_without_any_key(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("DASHSCOPE_API_KEY", raising=False)
+    monkeypatch.delenv("NAXUSSURF_LOCAL_EMBEDDINGS", raising=False)
+
+    module = _load_embeddings_module()
+    embeddings = module.QwenEmbeddings()
+
+    # Should use local embeddings (deterministic, 1536-dim)
+    result = embeddings.embed_query("hello")
+    assert len(result) == 1536
+    # Should be stable for same input
+    assert result == embeddings.embed_query("hello")

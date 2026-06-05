@@ -195,9 +195,33 @@ class ErrorResponse(BaseModel):
     detail: str = Field(..., description="错误详情。")
 
 
+class HealthResponse(BaseModel):
+    """健康检查响应体。"""
+
+    status: str = Field(..., description="服务状态，正常时为 ok。")
+    tools_loaded: bool = Field(..., description="MCP 工具是否已加载。")
+    agent_ready: bool = Field(..., description="Agent 是否已编译就绪。")
+
+
 @app.get("/", include_in_schema=False)
 async def frontend_index() -> FileResponse:
     return FileResponse(FRONTEND_DIR / "index.html")
+
+
+@app.get(
+    "/health",
+    summary="健康检查",
+    description="返回服务健康状态，包括 MCP 工具加载状态和 Agent 就绪状态。",
+    response_model=HealthResponse,
+    tags=["system"],
+)
+async def health_check() -> dict[str, Any]:
+    """健康检查：MCP 工具 + Agent 是否就绪。"""
+    return {
+        "status": "ok",
+        "tools_loaded": state.mcp_tools is not None,
+        "agent_ready": hasattr(state, "agent") and state.agent is not None,
+    }
 
 
 @app.post(

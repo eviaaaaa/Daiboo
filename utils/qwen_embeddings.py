@@ -50,6 +50,11 @@ class QwenEmbeddings(Embeddings):
                 base_url=_strip_env("OPENAI_BASE_URL"),
                 model=_strip_env("OPENAI_EMBEDDING_MODEL") or model,
             )
+        # If neither external provider is configured, default to local embeddings
+        # so RAG works offline without DashScope or OpenAI credentials.
+        has_dashscope_key = bool(_strip_env("DASHSCOPE_API_KEY"))
+        if not self._use_local_embeddings and self._openai_embeddings is None and not has_dashscope_key:
+            self._use_local_embeddings = True
 
     def _normalize_texts(self, texts: list[str]) -> list[str]:
         # 针对 embeddings 设计截断（最大 token 2,048）
