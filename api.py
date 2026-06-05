@@ -19,6 +19,7 @@ import sys
 import pprint
 from dotenv import load_dotenv
 from loguru import logger
+from utils.auth import AuthMiddleware
 from utils.config import app_host, app_port, project_env_file
 from utils.logging import setup_logging
 from utils.qwen_model import normalize_content
@@ -106,6 +107,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 认证 + 限流（NAXUSSURF_API_KEY 未设时自动关闭）
+app.add_middleware(AuthMiddleware)
 
 # HTTP 请求日志中间件
 @app.middleware("http")
