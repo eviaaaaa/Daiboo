@@ -92,6 +92,18 @@
 - Skills 目录可通过 `NAXUSSURF_SKILLS_DIR` 环境变量覆盖，默认 `skills/`。
 - 当前已有一个示例技能：`naxussurf-dev`（NaxusSurf 项目架构与开发指南）。
 
+## 7.4 当前仓库已知事实（2026-06-05 更新 — 结构化日志）
+
+- 新增 `utils/logging.py`：基于 loguru 的统一日志配置。入口（`api.py`、`main.py`）在 `load_dotenv()` 后调用 `setup_logging()` 初始化。
+- 两种输出模式，通过 `LOG_FORMAT` 环境变量切换：
+  - `pretty`（默认）：开发用，带颜色，含时间/级别/模块:函数:行号/消息。
+  - `json`：生产用，`serialize=True`，每行一个 JSON 对象（含 `record.message`、`record.extra`、`record.level` 等）。
+- 级别控制：`LOG_LEVEL`（debug/info/warning/error，默认 info）。
+- 文件输出：`LOG_FILE`（可选日志文件路径）。
+- **规则**：生产模块（`api.py`、`loggers/`、`utils/my_browser.py` 等）统一使用 `from loguru import logger`，不再使用裸 `print()`。CLI 入口 `main.py` 的用户界面消息保留 `print()`，内部错误用 `logger.error()`。
+- `api.py` 已加入 HTTP 请求日志中间件（`method`/`path`/`status_code` 绑定到 `extra`）。
+- 测试参见 `test/test_logging.py`。
+
 ## 8. 执行偏好
 
 - 小步修改，优先最小可验证变更。
