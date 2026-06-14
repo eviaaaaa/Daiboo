@@ -4,13 +4,26 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Daiboo 代步 Controller</title>
+    <script>
+        (() => {
+            const themes = ['obsidian', 'daylight', 'midnight', 'forest', 'sunset', 'contrast'];
+            let savedTheme = 'obsidian';
+            try {
+                savedTheme = localStorage.getItem('daiboo-theme') || 'obsidian';
+            } catch (_) {}
+            document.documentElement.dataset.theme = themes.includes(savedTheme) ? savedTheme : 'obsidian';
+        })();
+    </script>
+    <link rel="stylesheet" href="/vendor/tailwind.min.css">
     <script src="/vendor/vue.global.js"></script>
     <script src="/vendor/marked.min.js"></script>
     <script src="/vendor/purify.min.js"></script>
     <style>
-        :root {
+        :root,
+        html[data-theme="obsidian"] {
+            color-scheme: dark;
             --ns-bg: #08090a;
-            --ns-panel: #0f1011;
+            --ns-panel: rgba(15, 16, 17, 0.92);
             --ns-surface: rgba(255,255,255,0.04);
             --ns-surface-strong: rgba(255,255,255,0.07);
             --ns-border: rgba(255,255,255,0.08);
@@ -20,27 +33,127 @@
             --ns-soft: #d0d6e0;
             --ns-accent: #7170ff;
             --ns-accent-bg: #5e6ad2;
+            --ns-glow: rgba(113,112,255,0.16);
+            --ns-hero-glow: rgba(113,112,255,0.20);
+            --ns-card-shadow: rgba(0,0,0,0.34);
+            --ns-input-bg: rgba(0,0,0,0.30);
+            --ns-mobile-nav: rgba(0,0,0,0.75);
+        }
+        html[data-theme="daylight"] {
+            color-scheme: light;
+            --ns-bg: #f6f7fb;
+            --ns-panel: rgba(255,255,255,0.88);
+            --ns-surface: rgba(15,23,42,0.055);
+            --ns-surface-strong: rgba(15,23,42,0.09);
+            --ns-border: rgba(15,23,42,0.12);
+            --ns-border-soft: rgba(15,23,42,0.08);
+            --ns-text: #111827;
+            --ns-muted: #64748b;
+            --ns-soft: #334155;
+            --ns-accent: #4f46e5;
+            --ns-accent-bg: #4f46e5;
+            --ns-glow: rgba(79,70,229,0.13);
+            --ns-hero-glow: rgba(79,70,229,0.16);
+            --ns-card-shadow: rgba(15,23,42,0.12);
+            --ns-input-bg: rgba(255,255,255,0.86);
+            --ns-mobile-nav: rgba(255,255,255,0.86);
+        }
+        html[data-theme="midnight"] {
+            color-scheme: dark;
+            --ns-bg: #07111f;
+            --ns-panel: rgba(9, 20, 38, 0.92);
+            --ns-surface: rgba(96,165,250,0.08);
+            --ns-surface-strong: rgba(96,165,250,0.13);
+            --ns-border: rgba(147,197,253,0.16);
+            --ns-border-soft: rgba(147,197,253,0.09);
+            --ns-text: #f8fbff;
+            --ns-muted: #8aa4c2;
+            --ns-soft: #d8e8fb;
+            --ns-accent: #38bdf8;
+            --ns-accent-bg: #2563eb;
+            --ns-glow: rgba(56,189,248,0.16);
+            --ns-hero-glow: rgba(56,189,248,0.20);
+            --ns-card-shadow: rgba(0,8,20,0.40);
+            --ns-input-bg: rgba(0,8,20,0.34);
+            --ns-mobile-nav: rgba(2,12,27,0.82);
+        }
+        html[data-theme="forest"] {
+            color-scheme: dark;
+            --ns-bg: #07130d;
+            --ns-panel: rgba(10, 28, 18, 0.92);
+            --ns-surface: rgba(52,211,153,0.08);
+            --ns-surface-strong: rgba(52,211,153,0.13);
+            --ns-border: rgba(110,231,183,0.16);
+            --ns-border-soft: rgba(110,231,183,0.09);
+            --ns-text: #f5fff9;
+            --ns-muted: #8fb8a2;
+            --ns-soft: #d2f6df;
+            --ns-accent: #34d399;
+            --ns-accent-bg: #059669;
+            --ns-glow: rgba(52,211,153,0.15);
+            --ns-hero-glow: rgba(52,211,153,0.19);
+            --ns-card-shadow: rgba(0,15,8,0.38);
+            --ns-input-bg: rgba(0,12,6,0.34);
+            --ns-mobile-nav: rgba(2,20,11,0.82);
+        }
+        html[data-theme="sunset"] {
+            color-scheme: light;
+            --ns-bg: #fff7ed;
+            --ns-panel: rgba(255,250,245,0.90);
+            --ns-surface: rgba(194,65,12,0.07);
+            --ns-surface-strong: rgba(194,65,12,0.12);
+            --ns-border: rgba(154,52,18,0.16);
+            --ns-border-soft: rgba(154,52,18,0.10);
+            --ns-text: #2b1207;
+            --ns-muted: #8a5b44;
+            --ns-soft: #5f2d17;
+            --ns-accent: #f97316;
+            --ns-accent-bg: #ea580c;
+            --ns-glow: rgba(249,115,22,0.14);
+            --ns-hero-glow: rgba(249,115,22,0.18);
+            --ns-card-shadow: rgba(124,45,18,0.12);
+            --ns-input-bg: rgba(255,255,255,0.78);
+            --ns-mobile-nav: rgba(255,247,237,0.88);
+        }
+        html[data-theme="contrast"] {
+            color-scheme: dark;
+            --ns-bg: #000000;
+            --ns-panel: rgba(0,0,0,0.96);
+            --ns-surface: rgba(255,255,255,0.09);
+            --ns-surface-strong: rgba(255,255,255,0.16);
+            --ns-border: rgba(255,255,255,0.32);
+            --ns-border-soft: rgba(255,255,255,0.22);
+            --ns-text: #ffffff;
+            --ns-muted: #cbd5e1;
+            --ns-soft: #f1f5f9;
+            --ns-accent: #facc15;
+            --ns-accent-bg: #ca8a04;
+            --ns-glow: rgba(250,204,21,0.18);
+            --ns-hero-glow: rgba(250,204,21,0.24);
+            --ns-card-shadow: rgba(0,0,0,0.62);
+            --ns-input-bg: rgba(0,0,0,0.72);
+            --ns-mobile-nav: rgba(0,0,0,0.88);
         }
         body {
-            background: radial-gradient(circle at top left, rgba(113,112,255,0.16), transparent 32rem), var(--ns-bg);
+            background: radial-gradient(circle at top left, var(--ns-glow), transparent 32rem), var(--ns-bg);
         }
         .app-shell {
             background: var(--ns-bg);
             color: var(--ns-text);
         }
         .linear-panel {
-            background: rgba(15, 16, 17, 0.92);
+            background: var(--ns-panel);
             border-color: var(--ns-border-soft);
             box-shadow: inset -1px 0 0 rgba(255,255,255,0.03);
         }
         .linear-card {
-            background: rgba(255,255,255,0.04);
+            background: var(--ns-surface);
             border: 1px solid var(--ns-border);
-            box-shadow: 0 24px 70px rgba(0,0,0,0.34);
+            box-shadow: 0 24px 70px var(--ns-card-shadow);
             backdrop-filter: blur(18px);
         }
         .linear-surface {
-            background: rgba(15, 16, 17, 0.78);
+            background: var(--ns-panel);
             border: 1px solid var(--ns-border);
         }
         .nav-item {
@@ -53,13 +166,13 @@
             color: var(--ns-text);
         }
         .nav-item-active {
-            background: linear-gradient(135deg, rgba(94,106,210,0.95), rgba(113,112,255,0.78));
+            background: linear-gradient(135deg, var(--ns-accent-bg), var(--ns-accent));
             color: white;
             box-shadow: 0 10px 30px rgba(94,106,210,0.22);
         }
         .hero-gradient {
             background:
-                radial-gradient(circle at 20% 20%, rgba(113,112,255,0.20), transparent 28rem),
+                radial-gradient(circle at 20% 20%, var(--ns-hero-glow), transparent 28rem),
                 linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
         }
         .soft-scrollbar::-webkit-scrollbar,
@@ -80,23 +193,23 @@
             background: rgba(255,255,255,0.28);
         }
         .data-surface {
-            background: rgba(255,255,255,0.04);
+            background: var(--ns-surface);
             border: 1px solid var(--ns-border);
-            box-shadow: inset 0 1px 0 rgba(255,255,255,0.03), 0 20px 60px rgba(0,0,0,0.24);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.03), 0 20px 60px var(--ns-card-shadow);
         }
         .data-surface-soft {
-            background: rgba(255,255,255,0.025);
+            background: var(--ns-surface);
             border: 1px solid var(--ns-border-soft);
         }
         .result-card,
         .tool-card {
-            background: linear-gradient(180deg, rgba(255,255,255,0.045), rgba(255,255,255,0.025));
+            background: linear-gradient(180deg, var(--ns-surface-strong), var(--ns-surface));
             border: 1px solid var(--ns-border);
             color: var(--ns-soft);
         }
         .status-pill {
             border: 1px solid var(--ns-border);
-            background: rgba(255,255,255,0.05);
+            background: var(--ns-surface);
             color: var(--ns-soft);
         }
         .markdown-body {
@@ -178,7 +291,84 @@
         }
         .markdown-body th {
             color: var(--ns-text);
-            background: rgba(255,255,255,0.06);
+            background: var(--ns-surface-strong);
+        }
+
+        .theme-control {
+            align-self: flex-end;
+            z-index: 40;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin: 0.75rem 0.75rem 0 0;
+            padding: 0.45rem 0.55rem;
+            border: 1px solid var(--ns-border);
+            border-radius: 999px;
+            background: var(--ns-panel);
+            background: color-mix(in srgb, var(--ns-panel) 86%, transparent);
+            color: var(--ns-soft);
+            box-shadow: 0 16px 40px var(--ns-card-shadow);
+            backdrop-filter: blur(18px);
+        }
+        .theme-control label {
+            font-size: 0.75rem;
+            color: var(--ns-muted);
+            white-space: nowrap;
+        }
+        .theme-control select {
+            min-width: 7.75rem;
+            border: 1px solid var(--ns-border-soft);
+            border-radius: 999px;
+            background: var(--ns-input-bg);
+            color: var(--ns-text);
+            padding: 0.35rem 2rem 0.35rem 0.75rem;
+            font-size: 0.82rem;
+            outline: none;
+        }
+        .theme-control select:focus {
+            border-color: var(--ns-accent);
+            box-shadow: 0 0 0 3px color-mix(in srgb, var(--ns-accent) 22%, transparent);
+        }
+        html[data-theme] .text-white,
+        html[data-theme] .text-slate-100,
+        html[data-theme] .text-slate-200,
+        html[data-theme] .text-slate-300 {
+            color: var(--ns-text) !important;
+        }
+        html[data-theme] .text-slate-400,
+        html[data-theme] .text-slate-500,
+        html[data-theme] .text-slate-600 {
+            color: var(--ns-muted) !important;
+        }
+        html[data-theme] .placeholder\:text-slate-600::placeholder {
+            color: var(--ns-muted) !important;
+        }
+        html[data-theme] .border-white\/5,
+        html[data-theme] .border-white\/10,
+        html[data-theme] .border-slate-500,
+        html[data-theme] .border-indigo-300\/20 {
+            border-color: var(--ns-border) !important;
+        }
+        html[data-theme] .bg-white\/5,
+        html[data-theme] .bg-white\/\[0\.03\],
+        html[data-theme] .bg-white\/\[0\.06\],
+        html[data-theme] .bg-black\/20,
+        html[data-theme] .bg-black\/30 {
+            background: var(--ns-surface) !important;
+        }
+        html[data-theme] .bg-black\/75 {
+            background: var(--ns-mobile-nav) !important;
+        }
+        html[data-theme] input,
+        html[data-theme] select,
+        html[data-theme] textarea {
+            background: var(--ns-input-bg) !important;
+            color: var(--ns-text) !important;
+            border-color: var(--ns-border) !important;
+        }
+        html[data-theme] .nav-item-active,
+        html[data-theme] .bg-indigo-600.text-white {
+            color: #ffffff !important;
         }
     </style>
 </head>
@@ -216,9 +406,15 @@
 
         <!-- 主内容区 -->
         <div class="flex-1 min-w-0 flex flex-col overflow-hidden bg-transparent">
+            <div class="theme-control" aria-label="界面主题选择">
+                <label for="theme-select">主题</label>
+                <select id="theme-select" v-model="selectedTheme" @change="applyTheme(selectedTheme)">
+                    <option v-for="theme in themeOptions" :key="theme.id" :value="theme.id">{{ theme.icon }} {{ theme.label }}</option>
+                </select>
+            </div>
             
             <!-- 对话视图 -->
-            <div v-if="currentTab === 'chat'" class="flex-1 flex flex-col h-full relative p-4 md:p-6 gap-4 md:gap-5">
+            <div v-if="currentTab === 'chat'" class="flex-1 min-h-0 flex flex-col relative p-4 md:p-6 gap-4 md:gap-5">
                 <section class="linear-card hero-gradient rounded-3xl p-6 md:p-8">
                     <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                         <div>
@@ -270,7 +466,7 @@
             </div>
 
             <!-- 上传视图 -->
-            <div v-if="currentTab === 'upload'" class="rag-workbench p-4 md:p-10 overflow-y-auto soft-scrollbar">
+            <div v-if="currentTab === 'upload'" class="rag-workbench flex-1 min-h-0 p-4 md:p-10 overflow-y-auto soft-scrollbar">
                 <div class="max-w-7xl mx-auto space-y-8">
                     <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                         <div>
@@ -489,7 +685,7 @@
             </div>
 
             <!-- 工具视图 -->
-            <div v-if="currentTab === 'tools'" class="tools-workbench p-4 md:p-10 overflow-y-auto h-full soft-scrollbar">
+            <div v-if="currentTab === 'tools'" class="tools-workbench flex-1 min-h-0 p-4 md:p-10 overflow-y-auto soft-scrollbar">
                 <div class="mb-8 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
                     <div>
                         <h2 class="text-3xl font-bold text-slate-200">可用工具 (Tools)</h2>
@@ -524,7 +720,7 @@
             </div>
 
             <!-- 技能视图 -->
-            <div v-if="currentTab === 'skills'" class="skills-workbench p-4 md:p-10 overflow-y-auto h-full soft-scrollbar">
+            <div v-if="currentTab === 'skills'" class="skills-workbench flex-1 min-h-0 p-4 md:p-10 overflow-y-auto soft-scrollbar">
                 <div class="max-w-7xl mx-auto space-y-8">
                     <div class="mb-8 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
                         <div>
@@ -628,6 +824,28 @@
                 const loadingSkillContent = ref('');
                 const skillDetail = ref('');
                 const skillContentError = ref('');
+                const themeOptions = [
+                    { id: 'obsidian', label: '黑曜', icon: '🌑' },
+                    { id: 'daylight', label: '日光', icon: '☀️' },
+                    { id: 'midnight', label: '午夜蓝', icon: '🌌' },
+                    { id: 'forest', label: '森林', icon: '🌲' },
+                    { id: 'sunset', label: '夕照', icon: '🌇' },
+                    { id: 'contrast', label: '高对比', icon: '⚡' }
+                ];
+                let savedTheme = 'obsidian';
+                try {
+                    savedTheme = localStorage.getItem('daiboo-theme') || 'obsidian';
+                } catch (_) {}
+                const selectedTheme = ref(themeOptions.some(theme => theme.id === savedTheme) ? savedTheme : 'obsidian');
+                const applyTheme = (themeId) => {
+                    const nextTheme = themeOptions.some(theme => theme.id === themeId) ? themeId : 'obsidian';
+                    selectedTheme.value = nextTheme;
+                    document.documentElement.dataset.theme = nextTheme;
+                    try {
+                        localStorage.setItem('daiboo-theme', nextTheme);
+                    } catch (_) {}
+                };
+                applyTheme(selectedTheme.value);
 
                 const asIndentedCodeBlock = (text) => {
                     const normalized = String(text || '').replace(/\r\n/g, '\n');
@@ -916,7 +1134,10 @@
                     skillDetail,
                     skillContentError,
                     fetchSkills,
-                    toggleSkill
+                    toggleSkill,
+                    themeOptions,
+                    selectedTheme,
+                    applyTheme
                 };
             }
         }).mount('#app');
