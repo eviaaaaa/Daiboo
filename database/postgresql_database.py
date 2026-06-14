@@ -10,7 +10,7 @@ from sqlalchemy.engine import Engine
 from utils.config import project_env_file
 
 
-dotenv.load_dotenv(dotenv_path=os.getenv("DAIBOO_ENV_FILE") or project_env_file())
+dotenv.load_dotenv(dotenv_path=(os.getenv("DAIBOO_ENV_FILE") or "").strip() or project_env_file())
 
 
 def _database_config() -> dict[str, str | None]:

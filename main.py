@@ -131,5 +131,9 @@ async def main():
                 break
 
 
-if __name__ == "__main__":
+# 同步入口包装器，供 uv run / console_scripts 使用
+def cli_main():
     asyncio.run(main())
+
+if __name__ == "__main__":
+    cli_main()

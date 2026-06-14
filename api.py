@@ -398,7 +398,6 @@ async def list_skills_endpoint() -> list[dict[str, Any]]:
             "name": s.name,
             "description": s.description,
             "version": s.version,
-            "path": s.path,
             "tags": s.tags,
         }
         for s in skills
@@ -413,7 +412,7 @@ async def list_skills_endpoint() -> list[dict[str, Any]]:
     responses={404: {"model": ErrorResponse, "description": "未找到该技能。"}},
     tags=["skills"],
 )
-async def view_skill_endpoint(name: str) -> dict[str, str]:
+async def view_skill_endpoint(name: str) -> dict[str, Any]:
     """加载并返回技能完整内容。"""
     skill = get_skill_by_name(name)
     if skill is None:
@@ -422,7 +421,6 @@ async def view_skill_endpoint(name: str) -> dict[str, str]:
         "name": skill.name,
         "description": skill.description,
         "version": skill.version,
-        "path": skill.path,
         "tags": skill.tags,
         "content": skill.content,
     }

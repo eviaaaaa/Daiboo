@@ -47,8 +47,8 @@ Homepage = "https://github.com/eviaaaaa/Daiboo"
 Repository = "https://github.com/eviaaaaa/Daiboo.git"
 
 [project.scripts]
-daiboo = "main:main"          # CLI 交互模式: daiboo
-daiboo-serve = "api:app"      # Web 服务: daiboo-serve (uvicorn)
+daiboo = "main:cli_main"       # CLI 交互模式: daiboo
+daiboo-serve = "run_server:main"  # Web 服务: daiboo-serve (uvicorn)
 
 [project.optional-dependencies]
 dev = [

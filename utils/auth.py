@@ -40,11 +40,17 @@ def _get_api_key() -> str | None:
 
 
 def _get_rate_limit() -> int:
-    return int(os.getenv("RATE_LIMIT", "60"))
+    try:
+        return int(os.getenv("RATE_LIMIT", "60"))
+    except (ValueError, TypeError):
+        return 60
 
 
 def _get_rate_window() -> float:
-    return float(os.getenv("RATE_LIMIT_WINDOW", "60"))
+    try:
+        return float(os.getenv("RATE_LIMIT_WINDOW", "60"))
+    except (ValueError, TypeError):
+        return 60.0
 
 
 # 始终免鉴权的路径前缀
@@ -79,14 +85,21 @@ def _check_rate(key: str) -> bool:
 # ── 认证检查 ───────────────────────────────────────────────────────────────────
 
 def _client_key(request: Request) -> str:
-    """提取客户端标识：API Key 优先，否则 IP。"""
+    """提取客户端标识：API Key 优先，否则 IP。
+
+    仅在设置 TRUSTED_PROXY 环境变量时信任 X-Forwarded-For 头部，
+    否则仅使用直连客户端 IP（防止 IP 伪造绕过限流）。
+    """
     api_key = _get_api_key()
     key = request.headers.get("X-API-Key", "")
     if key and api_key:
         return f"key:{key}"
-    # 回退 IP
-    forwarded = request.headers.get("X-Forwarded-For")
-    ip = (forwarded or "").split(",")[0].strip() or (request.client.host if request.client else "unknown")
+    # IP 回退：若配置了信任代理则取 X-Forwarded-For，否则取直连 IP
+    if os.getenv("TRUSTED_PROXY"):
+        forwarded = request.headers.get("X-Forwarded-For")
+        ip = (forwarded or "").split(",")[0].strip() or (request.client.host if request.client else "unknown")
+    else:
+        ip = request.client.host if request.client else "unknown"
     return f"ip:{ip}"
 
 

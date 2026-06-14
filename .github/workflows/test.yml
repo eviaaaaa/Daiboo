@@ -79,5 +79,29 @@ jobs:
         run: |
           PGPASSWORD=daiboo_test psql -h localhost -U daiboo -d daiboo_test -c 'CREATE EXTENSION IF NOT EXISTS vector;'
 
+      - name: Initialize database schema
+        run: |
+          python -c "
+          from entity import Base
+          from entity.rag_document import RagDocument
+          from database import engine
+          # Create all entity tables (agent_traces, experiences, my_state, etc.)
+          Base.metadata.create_all(engine)
+          # Create rag_documents table
+          RagDocument.metadata.create_all(engine)
+          # Create required indexes for rag_documents
+          from sqlalchemy import text
+          with engine.begin() as conn:
+              conn.execute(text(
+                  'CREATE INDEX IF NOT EXISTS ix_rag_documents_parent_id '
+                  'ON rag_documents(parent_id)'
+              ))
+              conn.execute(text(
+                  'CREATE INDEX IF NOT EXISTS ix_rag_documents_chunk_level '
+                  'ON rag_documents(chunk_level)'
+              ))
+          print('Schema initialized')
+          "
+
       - name: Run tests
-        run: python -m pytest -q --tb=short --ignore=test/test_experience_system.py --ignore=test/test_rag_custom.py --ignore=test/test_rag_distance.py
+        run: python -m pytest -q --tb=short
