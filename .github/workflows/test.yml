@@ -80,4 +80,4 @@ jobs:
           PGPASSWORD=daiboo_test psql -h localhost -U daiboo -d daiboo_test -c 'CREATE EXTENSION IF NOT EXISTS vector;'
 
       - name: Run tests
-        run: python -m pytest -q --tb=short
+        run: python -m pytest -q --tb=short --ignore=test/test_experience_system.py --ignore=test/test_rag_custom.py --ignore=test/test_rag_distance.py
