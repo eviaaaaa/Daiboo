@@ -1,16 +1,23 @@
 import asyncio
+from dotenv import load_dotenv
 import pprint
 from typing import TYPE_CHECKING
 
 from langchain.messages import HumanMessage
 from langgraph.types import Command
+from loguru import logger
 
 from utils.my_browser import ensure_browser_running
 from utils.mcp_client import create_persistent_mcp_session
 from utils.agent_factory import create_browser_agent
+from utils.config import project_env_file
+from utils.logging import setup_logging
 
 if TYPE_CHECKING:
     pass
+
+load_dotenv(dotenv_path=project_env_file())
+setup_logging()
 
 
 async def ainput(prompt: str = "") -> str:
@@ -36,7 +43,7 @@ async def main():
         browser_agent = await create_browser_agent(mcp_tools)
 
         print("=" * 60)
-        print("NexusSurf 浏览器自动化助手")
+        print("Daiboo（代步）浏览器自动化助手")
         print("命令：'exit'/'quit' 退出 | 'new'/'reset' 新建对话")
         print("=" * 60)
 
@@ -89,7 +96,7 @@ async def main():
                         print("\n" + "=" * 50 + "\n")
 
                 except Exception as e:
-                    print(f"执行过程中发生异常: {e}")
+                    logger.error("Agent execution error: {}", str(e))
                     had_exception = True
 
                 # 每次执行完（或异常后）统一检查当前状态
@@ -124,5 +131,9 @@ async def main():
                 break
 
 
-if __name__ == "__main__":
+# 同步入口包装器，供 uv run / console_scripts 使用
+def cli_main():
     asyncio.run(main())
+
+if __name__ == "__main__":
+    cli_main()

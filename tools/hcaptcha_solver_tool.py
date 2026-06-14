@@ -45,7 +45,14 @@ from pydantic import BaseModel, ConfigDict, Field
 logger = logging.getLogger(__name__)
 
 
-DEFAULT_CDP_ENDPOINT = os.getenv("BROWSER_CDP_ENDPOINT", "http://127.0.0.1:9222")
+def default_cdp_endpoint() -> str:
+    configured = (os.getenv("BROWSER_CDP_ENDPOINT") or "").strip()
+    if configured:
+        return configured
+    debugging_port = (os.getenv("DEBUGGING_PORT") or "").strip() or "9222"
+    return f"http://127.0.0.1:{debugging_port}"
+
+
 DEFAULT_TARGET_URL_HINT = "hcaptcha"
 
 
@@ -165,7 +172,7 @@ class HCaptchaSolverTool(BaseTool):
 
     args_schema: Type[BaseModel] = HCaptchaSolverInput
 
-    cdp_endpoint: str = Field(default=DEFAULT_CDP_ENDPOINT, exclude=True)
+    cdp_endpoint: str = Field(default_factory=default_cdp_endpoint, exclude=True)
 
     def _run(self, **_: Any) -> str:
         raise NotImplementedError("solve_hcaptcha 仅支持异步调用，请用 _arun")

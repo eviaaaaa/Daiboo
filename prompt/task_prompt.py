@@ -1,8 +1,8 @@
-
-from dotenv import load_dotenv
 import os
 
-load_dotenv()
+from utils.config import load_project_dotenv
+
+load_project_dotenv()
 QFNU_USERNAME=os.environ["QFNU_USERNAME"]
 QFNU_PASSWORD=os.environ["QFNU_PASSWORD"]
 tasks: list[str] = []

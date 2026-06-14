@@ -1,0 +1,107 @@
+name: Test
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: daiboo
+          POSTGRES_PASSWORD: daiboo_test
+          POSTGRES_DB: daiboo_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpq-dev
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cu121
+
+      - name: Install Playwright browsers
+        run: |
+          playwright install chromium
+
+      - name: Install Playwright MCP
+        run: |
+          npm install -g @playwright/mcp
+
+      - name: Create test .env
+        run: |
+          cat > .env << 'DOTENV'
+          DB_HOST=localhost
+          DB_PORT=5432
+          DB_NAME=daiboo_test
+          DB_USER=daiboo
+          DB_PASSWORD=daiboo_test
+          HOST=127.0.0.1
+          PORT=8801
+          DEBUGGING_PORT=9222
+          BROWSER_PATH=
+          USER_DATA_DIR=/tmp/daiboo-test-profile
+          DAIBOO_LOCAL_EMBEDDINGS=1
+          DOTENV
+
+      - name: Enable pgvector extension
+        run: |
+          PGPASSWORD=daiboo_test psql -h localhost -U daiboo -d daiboo_test -c 'CREATE EXTENSION IF NOT EXISTS vector;'
+
+      - name: Initialize database schema
+        run: |
+          python -c "
+          from entity import Base
+          from entity.rag_document import RagDocument
+          from database import engine
+          # Create all entity tables (agent_traces, experiences, my_state, etc.)
+          Base.metadata.create_all(engine)
+          # Create rag_documents table
+          RagDocument.metadata.create_all(engine)
+          # Create required indexes for rag_documents
+          from sqlalchemy import text
+          with engine.begin() as conn:
+              conn.execute(text(
+                  'CREATE INDEX IF NOT EXISTS ix_rag_documents_parent_id '
+                  'ON rag_documents(parent_id)'
+              ))
+              conn.execute(text(
+                  'CREATE INDEX IF NOT EXISTS ix_rag_documents_chunk_level '
+                  'ON rag_documents(chunk_level)'
+              ))
+          print('Schema initialized')
+          "
+
+      - name: Run tests
+        run: python -m pytest -q --tb=short

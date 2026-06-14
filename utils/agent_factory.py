@@ -1,6 +1,7 @@
 from langchain import agents
 from langchain.agents.middleware import HumanInTheLoopMiddleware
 from typing import TYPE_CHECKING, Any
+import os
 from context.context_manager import ContextManagerMiddleware
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.prebuilt.tool_node import ToolNode
@@ -20,14 +21,21 @@ from tools import (
     WebObserveTool,
     HCaptchaSolverTool,
     delay_tool_call,
+    list_skills,
     search_documents,
-    search_task_experience
+    search_task_experience,
+    view_skill,
 )
 from tools.terminal_tools import terminal_read, terminal_write
-from utils.qwen_model import create_qwen_model
+from utils.qwen_model import (
+    create_openai_compatible_model,
+    create_qwen_model,
+    is_openai_compatible_configured,
+)
 
 if TYPE_CHECKING:
     from langgraph.graph.state import CompiledStateGraph
+    from langgraph.checkpoint.base import BaseCheckpointSaver
 
 # 单例缓存
 _agent_cache: dict[str, "CompiledStateGraph"] = {}
@@ -40,6 +48,8 @@ def get_agent_tools(mcp_tools: Any, screenshot_helper: Any = None) -> list[Any]:
         screenshot_helper: ScreenshotHelper 实例，供 CaptureElementContextTool 使用
     """
     return [
+        list_skills,                                                # Skills: list available
+        view_skill,                                                 # Skills: load specific
         *mcp_tools,                                                  # MCP 浏览器工具
         CaptureElementContextTool(helper=screenshot_helper),         # 重写版
         VLAnalysisTool(),                                            # 保留
@@ -56,6 +66,7 @@ async def create_browser_agent(
     screenshot_helper: Any = None,
     model_name: str = "qwen3.5-plus",
     enable_thinking: bool = True,
+    checkpointer: Any = None,
 ) -> "CompiledStateGraph":
     """
     创建并配置浏览器自动化 Agent（单例模式）
@@ -65,6 +76,8 @@ async def create_browser_agent(
         screenshot_helper: ScreenshotHelper 实例
         model_name: 使用的模型名称
         enable_thinking: 是否启用思考模式
+        checkpointer: 可选的外部 checkpointer（如 SqliteSaver）。
+                      未提供时使用 InMemorySaver（重启后会话丢失）。
     """
     # 创建缓存键，基于模型参数
     cache_key = f"{model_name}_{enable_thinking}"
@@ -76,12 +89,20 @@ async def create_browser_agent(
     # 初始化工具集
     tools = get_agent_tools(mcp_tools, screenshot_helper)
 
-    # 初始化模型
-    model = create_qwen_model(
-        model_name=model_name,
-        temperature=0.0,
-        request_timeout=5000,
-    )
+    # 初始化模型。默认保持 Qwen/DashScope；如果显式提供 OPENAI_API_KEY，
+    # 则走 OpenAI 兼容接口，便于复用 Hermes/Gateway 的本地模型配置。
+    if is_openai_compatible_configured():
+        model = create_openai_compatible_model(
+            model_name=os.getenv("OPENAI_MODEL") or model_name,
+            temperature=0.0,
+            request_timeout=5000,
+        )
+    else:
+        model = create_qwen_model(
+            model_name=model_name,
+            temperature=0.0,
+            request_timeout=5000,
+        )
 
     # 初始化 ContextManagerMiddleware
     context_middleware = ContextManagerMiddleware(model=model)
@@ -98,11 +119,14 @@ async def create_browser_agent(
     # 必须用工厂构造，因为它要持有当前 MCP session 的工具列表（含 browser_evaluate）
     diff_middleware = make_diff_middleware(mcp_tools)
 
+    # 选择 checkpointer：外部提供（如 SqliteSaver）> InMemorySaver
+    _checkpointer = checkpointer if checkpointer is not None else InMemorySaver()
+
     # 创建 Agent（最耗时的操作）
     browser_agent = agents.create_agent(
         system_prompt=system_prompt.system_prompt,
         state_schema=MyState,
-        checkpointer=InMemorySaver(),
+        checkpointer=_checkpointer,
         model=model,
         tools=tools,
         middleware=[

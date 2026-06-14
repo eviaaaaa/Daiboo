@@ -1,10 +1,10 @@
-# NexusSurf
+# Daiboo（代步）
 
 面向复杂网页任务的智能浏览器代理框架，基于 LLM + Playwright MCP 执行浏览器操作，并结合上下文压缩、人工审批、文档检索与任务经验复用能力。
 
 ## 项目简介
 
-NexusSurf 通过 **@playwright/mcp** + LangChain/LangGraph 组合，实现可交互的 Web Agent。它不是只执行固定脚本的浏览器自动化工具，而是把浏览器操作、视觉分析、终端读写、文档检索和经验检索放入统一的 Agent 工具链中，由模型按任务目标动态编排。浏览器操作通过 MCP (Model Context Protocol) 以 snapshot-ref 模式驱动，并使用持久会话保持跨工具调用的页面状态。
+Daiboo（代步）通过 **@playwright/mcp** + LangChain/LangGraph 组合，实现可交互的 Web Agent。它不是只执行固定脚本的浏览器自动化工具，而是把浏览器操作、视觉分析、终端读写、文档检索和经验检索放入统一的 Agent 工具链中，由模型按任务目标动态编排。浏览器操作通过 MCP (Model Context Protocol) 以 snapshot-ref 模式驱动，并使用持久会话保持跨工具调用的页面状态。
 
 - 支持自然语言驱动浏览器与辅助工具协同执行，MCP 已启用 vision 能力，可使用坐标类鼠标工具处理拖拽等场景。
 - 支持文档上传索引、文档检索和任务经验复用。
@@ -31,7 +31,13 @@ NexusSurf 通过 **@playwright/mcp** + LangChain/LangGraph 组合，实现可交
 
 ### 2. 安装依赖
 
-推荐安装方式：
+推荐使用 uv（快，锁定版本）：
+
+```bash
+uv sync --group dev
+```
+
+或使用传统 pip：
 
 ```powershell
 conda create -n langchainenv python=3.11 -y
@@ -62,30 +68,49 @@ cp .env.example .env
 
 请至少填写 `.env` 中以下配置：
 
-- `DASHSCOPE_API_KEY`
+- 主聊天模型二选一：
+  - OpenAI 兼容接口：`OPENAI_API_KEY`，可选 `OPENAI_BASE_URL`、`OPENAI_MODEL`
+  - DashScope 兼容路径：`DASHSCOPE_API_KEY`（当 `OPENAI_API_KEY` 留空时自动回退）
 - hCaptcha 求解二选一：
   - GLM 路径：`LLM_PROVIDER=glm`、`GLM_API_KEY`，可选 `GLM_BASE_URL`、`GLM_MODEL`
   - Gemini 路径：`GEMINI_API_KEY`
-- `DB_HOST`、`DB_PORT`、`DB_NAME`、`DB_USER`、`DB_PASSWORD`
-- `BROWSER_PATH`、`USER_DATA_DIR`、`DEBUGGING_PORT`
+- RAG/文档上传功能需要 PostgreSQL + PGVector：`DB_HOST`、`DB_PORT`、`DB_NAME`、`DB_USER`、`DB_PASSWORD`
+- 浏览器控制：`BROWSER_PATH`、`USER_DATA_DIR`、`DEBUGGING_PORT`
+- Web 服务可选项：`HOST`（默认 `127.0.0.1`）、`PORT`（默认 `8801`，范围 `1..65535`）、`UPLOAD_DIR`（默认 `temp_uploads/`）
+
+可选增强（不配置不影响运行）：
+
+- API 安全：`DAIBOO_API_KEY`（设置即启用 X-API-Key 认证）、`RATE_LIMIT`（默认 60 req/60s，设 0 关闭）
+- 日志：`LOG_LEVEL`（debug/info/warning/error，默认 info）、`LOG_FORMAT`（pretty/json）
+- Skills 目录：`DAIBOO_SKILLS_DIR`（默认 `skills/`）
+- 会话持久化：`DAIBOO_CHECKPOINT_DIR`（SQLite checkpoint，默认 `data/`）
+
+详见 `.env.example` 中注释。
 
 ## 启动方式
 
 ### 1. Web 服务模式（推荐）
 
-```powershell
+```bash
+# 直接启动
 python run_server.py
+
+# 或用 uv run（自动激活 venv + 安装缺失依赖）
+uv run daiboo-serve
 ```
 
 启动后：
 
-- API 默认监听 `http://localhost:8801`
-- 会自动打开 `frontend/index.html`
+- API 默认监听 `http://127.0.0.1:8801`（可用 `.env` 里的 `HOST` / `PORT` 覆盖）
+- `run_server.py` 会自动打开 `frontend/index.html`
 
 ### 2. CLI 模式
 
-```powershell
+```bash
 python main.py
+
+# 或
+uv run daiboo
 ```
 
 支持命令：
@@ -101,6 +126,7 @@ Agent 在每次对话中可见的工具分两类：
 
 **本仓库自定义工具**（在 `tools/` 下）：
 
+- `list_skills` / `view_skill`：Skill 技能系统。`list_skills` 列出所有可用技能及描述，`view_skill(name)` 加载完整技能内容。Agent 每次任务前应先调用 `list_skills` 查看有无匹配技能。
 - `web_observe`：基于 simphtml 的 LLM-friendly 页面观察。**跨 iframe 与 Shadow DOM 内容内联**、自动剔除浮窗广告、字符预算可控（默认 35000）、表单当前值落入属性。与 `browser_snapshot` 共存，不替换。
   - `text_only=True`：纯文本输出，最省 token，适合"快速看页面写了啥"
   - `text_only=False`（默认）：简化 HTML 输出，保留结构便于后续 `browser_snapshot` 拿 ref 操作
@@ -121,13 +147,18 @@ Agent 在每次对话中可见的工具分两类：
 
 - `POST /chat`：发送消息并流式返回执行结果
 - `GET /tools`：列出可用工具
+- `GET /skills`：列出所有可用 Skills（名称、描述、版本、标签）
+- `GET /skills/{name}`：加载指定 Skill 完整内容
 - `POST /upload`：上传 PDF、DOC、DOCX、Markdown、TXT 等文档并写入向量库，响应里包含本次生成的 `total_parents` 和 `total_children`
 - `POST /rag/search`：调试 RAG 检索，返回大块、小块和层级聚合结果，以及相关 chunk 明细
 
 ## 测试
 
-```powershell
-conda activate langchainenv
+```bash
+# 使用 uv（自动激活 venv）
+uv run pytest
+
+# 或直接
 pytest
 ```
 
@@ -151,9 +182,35 @@ conda run -n langchainenv python test/manual/hcaptcha_demo_manual.py --prompt v4
 
 - `ModuleNotFoundError`：检查是否激活虚拟环境并已安装依赖。
 - 数据库报错 `extension "vector" does not exist`：在目标数据库执行 `CREATE EXTENSION IF NOT EXISTS vector;`。
-- MCP 连接失败 / `npx` 找不到：确认 Node.js 已安装且 `npx @playwright/mcp@latest` 可正常运行。
-- 浏览器未启动 / CDP 连接被拒绝：检查 `.env` 中 `BROWSER_PATH` 和 `DEBUGGING_PORT` 配置，确保浏览器以 `--remote-debugging-port` 启动。
+- MCP 连接失败 / `npx` 找不到：确认 Node.js 已安装且 `npx @playwright/mcp@latest` 可正常运行；如需指定命令，可设置 `NPX_COMMAND`。
+- 浏览器未启动 / CDP 连接被拒绝：检查 `.env` 中 `BROWSER_PATH` 和 `DEBUGGING_PORT` 配置，确保浏览器以 `--remote-debugging-port` 启动；Linux/headless 环境会自动附加 `--headless=new`、`--no-sandbox` 等参数。
+- `PORT must be an integer between 1 and 65535`：检查 `.env` 中 `PORT` 是否为空、非数字或超出端口范围。
 - `solve_hcaptcha` 返回 `missing_*_api_key`：检查 `.env` 是否配置 `LLM_PROVIDER=glm + GLM_API_KEY`，或配置可直连的 `GEMINI_API_KEY`。
+
+## 技能系统 (Skills)
+
+Skills 是预置的专项知识模块，Agent 按需加载。每个 Skill 是一个 `skills/<name>/SKILL.md` 文件，包含 YAML frontmatter 和 Markdown 正文。
+
+### 添加新 Skill
+
+在 `skills/` 下创建子目录，放入 `SKILL.md`：
+
+```markdown
+---
+name: my-skill
+description: "技能描述"
+version: 1.0.0
+tags: [tag1, tag2]
+---
+
+# 技能内容
+
+详细步骤、命令、陷阱等...
+```
+
+Skills 目录可通过环境变量 `DAIBOO_SKILLS_DIR` 覆盖（默认 `skills/`）。
+
+服务启动后自动扫描；前端 Skills 页面可查看列表和详情；Agent 在对话中通过 `list_skills` → `view_skill(name)` 加载。
 
 ## 文档分工
 

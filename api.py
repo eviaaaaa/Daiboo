@@ -1,19 +1,31 @@
 import uvicorn
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from contextlib import asynccontextmanager
+from pathlib import Path
 from langchain.messages import HumanMessage, AIMessage
 from langgraph.types import Command
+from langgraph.checkpoint.sqlite import SqliteSaver
 from typing import TYPE_CHECKING, Any, AsyncIterator, Optional
 import json
 import shutil
+import os
 from pathlib import Path
 import asyncio
 import sys
 import pprint
+from dotenv import load_dotenv
+from loguru import logger
+from utils.auth import AuthMiddleware
+from utils.config import app_host, app_port, project_env_file
+from utils.logging import setup_logging
 from utils.qwen_model import normalize_content
+
+load_dotenv(dotenv_path=project_env_file())
+setup_logging()
 
 # 为 Playwright 设置 Windows 事件循环策略
 if sys.platform == 'win32':
@@ -23,6 +35,8 @@ from utils.my_browser import ensure_browser_running
 from utils.mcp_client import create_persistent_mcp_session
 from utils.agent_factory import create_browser_agent, get_agent_tools
 from utils.upload_paths import build_safe_upload_path
+from utils.config import upload_dir
+from utils.skills import get_skill_by_name, load_skills
 from rag.document_rag_pgvector import (
     debug_query_document_from_pgvector,
     get_rag_corpus_summary,
@@ -51,27 +65,34 @@ _mcp_session_cleanup: Any | None = None
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # 确保浏览器进程运行
-    print("Ensuring browser is running...")
+    logger.info("Ensuring browser is running...")
     await ensure_browser_running()
 
     # 使用持久 MCP 会话
-    print("Starting persistent MCP session...")
+    logger.info("Starting persistent MCP session...")
     async with create_persistent_mcp_session() as mcp_tools:
         state.mcp_tools = mcp_tools
 
-        # 创建 Agent
-        print("Creating Agent...")
-        state.agent = await create_browser_agent(mcp_tools)
+        # SQLite checkpointer：会话跨重启持久化
+        db_dir = Path(os.getenv("DAIBOO_CHECKPOINT_DIR", str(Path(__file__).resolve().parent / "data")))
+        db_dir.mkdir(parents=True, exist_ok=True)
+        db_path = str(db_dir / "agent_checkpoints.db")
+        logger.info("Opening checkpoint DB: {}", db_path)
 
-        print("System initialized and ready.")
-        yield
+        with SqliteSaver.from_conn_string(db_path) as checkpointer:
+            # 创建 Agent
+            logger.info("Creating Agent...")
+            state.agent = await create_browser_agent(mcp_tools, checkpointer=checkpointer)
+
+            logger.info("System initialized and ready.")
+            yield
 
     # 退出 async with 后 MCP subprocess 自动清理
-    print("MCP session cleaned up.")
+    logger.info("MCP session cleaned up.")
 
 app = FastAPI(
     lifespan=lifespan,
-    title="NexusSurf API",
+    title="Daiboo API",
     description=(
         "提供浏览器自动化对话、可用工具查询和文档上传索引能力。"
         "其中 `/chat` 使用 NDJSON 流式返回执行过程与最终消息。"
@@ -85,6 +106,27 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+)
+
+# 认证 + 限流（DAIBOO_API_KEY 未设时自动关闭）
+app.add_middleware(AuthMiddleware)
+
+# HTTP 请求日志中间件
+@app.middleware("http")
+async def log_requests(request, call_next):
+    resp = await call_next(request)
+    logger.bind(
+        method=request.method,
+        path=request.url.path,
+        status_code=resp.status_code,
+    ).info("request")
+    return resp
+
+FRONTEND_DIR = Path(__file__).resolve().parent / "frontend"
+app.mount(
+    "/vendor",
+    StaticFiles(directory=FRONTEND_DIR / "vendor"),
+    name="frontend-vendor",
 )
 
 class ChatRequest(BaseModel):
@@ -181,6 +223,35 @@ class ErrorResponse(BaseModel):
     detail: str = Field(..., description="错误详情。")
 
 
+class HealthResponse(BaseModel):
+    """健康检查响应体。"""
+
+    status: str = Field(..., description="服务状态，正常时为 ok。")
+    tools_loaded: bool = Field(..., description="MCP 工具是否已加载。")
+    agent_ready: bool = Field(..., description="Agent 是否已编译就绪。")
+
+
+@app.get("/", include_in_schema=False)
+async def frontend_index() -> FileResponse:
+    return FileResponse(FRONTEND_DIR / "index.html")
+
+
+@app.get(
+    "/health",
+    summary="健康检查",
+    description="返回服务健康状态，包括 MCP 工具加载状态和 Agent 就绪状态。",
+    response_model=HealthResponse,
+    tags=["system"],
+)
+async def health_check() -> dict[str, Any]:
+    """健康检查：MCP 工具 + Agent 是否就绪。"""
+    return {
+        "status": "ok",
+        "tools_loaded": state.mcp_tools is not None,
+        "agent_ready": hasattr(state, "agent") and state.agent is not None,
+    }
+
+
 @app.post(
     "/chat",
     summary="发送对话消息",
@@ -273,6 +344,7 @@ async def chat(request: ChatRequest) -> StreamingResponse:
                 yield f"{data}\n"
 
         except Exception as e:
+            logger.exception("Chat streaming error for thread {}", request.thread_id)
             data = json.dumps({"type": "error", "content": str(e)}, ensure_ascii=False)
             yield f"{data}\n"
 
@@ -294,6 +366,66 @@ async def list_tools() -> list[dict[str, str]]:
     tools = get_agent_tools(state.mcp_tools)
     return [{"name": t.name, "description": t.description} for t in tools]
 
+
+class SkillSummary(BaseModel):
+    """技能概要信息。"""
+
+    name: str = Field(..., description="技能名称。")
+    description: str = Field(..., description="技能用途说明。")
+    version: str = Field("0.0.0", description="技能版本号。")
+    path: str = Field("", description="技能目录本地路径。")
+    tags: list[str] | None = Field(None, description="技能标签列表。")
+
+
+class SkillDetail(SkillSummary):
+    """技能详情。"""
+
+    content: str = Field(..., description="技能完整 Markdown 正文。")
+
+
+@app.get(
+    "/skills",
+    summary="获取可用技能列表",
+    description="返回当前已加载的所有技能名称、描述和版本信息。",
+    response_model=list[SkillSummary],
+    tags=["skills"],
+)
+async def list_skills_endpoint() -> list[dict[str, Any]]:
+    """列出所有可用的 Skills。"""
+    skills = load_skills()
+    return [
+        {
+            "name": s.name,
+            "description": s.description,
+            "version": s.version,
+            "tags": s.tags,
+        }
+        for s in skills
+    ]
+
+
+@app.get(
+    "/skills/{name}",
+    summary="获取技能详情",
+    description="返回指定技能的完整内容，包括 frontmatter 元数据和 Markdown 正文。",
+    response_model=SkillDetail,
+    responses={404: {"model": ErrorResponse, "description": "未找到该技能。"}},
+    tags=["skills"],
+)
+async def view_skill_endpoint(name: str) -> dict[str, Any]:
+    """加载并返回技能完整内容。"""
+    skill = get_skill_by_name(name)
+    if skill is None:
+        raise HTTPException(status_code=404, detail=f"Skill '{name}' not found")
+    return {
+        "name": skill.name,
+        "description": skill.description,
+        "version": skill.version,
+        "tags": skill.tags,
+        "content": skill.content,
+    }
+
+
 @app.post(
     "/upload",
     summary="上传文档并建立索引",
@@ -307,11 +439,11 @@ async def list_tools() -> list[dict[str, str]]:
 )
 async def upload_document(
     file: UploadFile = File(..., description="待上传并建立索引的文件。")
-) -> dict[str, str]:
+) -> dict[str, Any]:
     """上传文件并写入向量库。"""
 
-    temp_dir: Path = Path("temp_uploads")
-    temp_dir.mkdir(exist_ok=True)
+    temp_dir: Path = upload_dir()
+    temp_dir.mkdir(parents=True, exist_ok=True)
 
     try:
         display_name, file_path = build_safe_upload_path(temp_dir, file.filename or "")
@@ -331,6 +463,7 @@ async def upload_document(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as e:
+        logger.exception("Document upload/indexing failed for {}", file.filename or "unknown")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -352,6 +485,7 @@ async def debug_rag_search(request: RagSearchRequest) -> dict[str, Any]:
             request.use_rerank,
         )
     except Exception as exc:
+        logger.exception("RAG search failed for query: {}", request.query[:100])
         raise HTTPException(status_code=500, detail=str(exc))
 
 
@@ -366,7 +500,8 @@ async def rag_corpus_summary() -> dict[str, Any]:
     try:
         return await asyncio.to_thread(get_rag_corpus_summary)
     except Exception as exc:
+        logger.exception("RAG corpus summary failed")
         raise HTTPException(status_code=500, detail=str(exc))
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8801)
+    uvicorn.run(app, host=app_host(), port=app_port())

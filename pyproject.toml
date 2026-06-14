@@ -1,0 +1,95 @@
+[project]
+name = "daiboo"
+version = "0.1.0"
+description = "Daiboo（代步）：面向复杂网页任务的智能浏览器代理框架，基于 LLM + Playwright MCP"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [
+    { name = "eviaaaaa", email = "w2278596667@gmail.com" },
+]
+keywords = ["browser-automation", "ai-agent", "playwright", "llm", "langgraph", "mcp"]
+dependencies = [
+    "dashscope>=1.25",
+    "fastapi>=0.125",
+    "hcaptcha-challenger>=0.18.13",
+    "jieba>=0.42",
+    "langchain>=1.2",
+    "langchain-community>=0.4",
+    "langchain-core>=1.2",
+    "langchain-mcp-adapters>=0.1",
+    "langchain-openai>=0.3",
+    "langchain-text-splitters>=1.0",
+    "langgraph>=1.0",
+    "langgraph-checkpoint-sqlite>=2.0",
+    "langsmith>=0.4",
+    "loguru>=0.7",
+    "pgvector>=0.3",
+    "pillow>=11",
+    "playwright>=1.55",
+    "psycopg>=3.3",
+    "psycopg-binary>=3.3",
+    "pydantic>=2.11",
+    "pypdf>=6.4",
+    "python-dotenv>=1.1",
+    "python-multipart>=0.0.20",
+    "sentence-transformers>=5.1",
+    "socksio>=1.0",
+    "sqlalchemy>=2.0",
+    "torch>=2.5",
+    "unstructured>=0.18",
+    "docx2txt>=0.9",
+    "uvicorn>=0.38",
+]
+
+[project.urls]
+Homepage = "https://github.com/eviaaaaa/Daiboo"
+Repository = "https://github.com/eviaaaaa/Daiboo.git"
+
+[project.scripts]
+daiboo = "main:cli_main"       # CLI 交互模式: daiboo
+daiboo-serve = "run_server:main"  # Web 服务: daiboo-serve (uvicorn)
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=9",
+    "pytest-asyncio>=1.3",
+    "vcrpy>=8.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9",
+    "pytest-asyncio>=1.3",
+    "vcrpy>=8.0",
+]
+
+[tool.uv]
+dev-dependencies = [
+    "pytest>=9",
+    "pytest-asyncio>=1.3",
+    "vcrpy>=8.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["test"]
+pythonpath = ["."]
+asyncio_mode = "auto"
+filterwarnings = [
+    "ignore::DeprecationWarning:vcr.*",
+    "ignore::DeprecationWarning:langchain_core.*",
+    "ignore::DeprecationWarning:pydantic.*",
+    "ignore::DeprecationWarning:pkg_resources.*",
+    "ignore::UserWarning:sentence_transformers.*",
+    "ignore::UserWarning:huggingface_hub.*",
+    "ignore::UserWarning:torch.*",
+]
+python_files = ["test_*.py"]
+norecursedirs = ["test/manual"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]

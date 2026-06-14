@@ -94,7 +94,8 @@ def test_question_rag_returns_distance():
     print(f"[Test] Top result: Trace ID={trace.id}")
     
     assert isinstance(trace, AgentTrace)
-    assert trace.id == trace_id
+    assert trace.id is None  # get_question_from_pgvector strips IDs before returning context
+    assert TEST_MARKER in trace.user_query
     
     # 清理
     with Session(engine) as session:

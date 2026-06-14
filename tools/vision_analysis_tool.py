@@ -40,7 +40,12 @@ class VLAnalysisTool(BaseTool):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self._initialize_model()
+
+    @property
+    def model(self):
+        if self._model is None:
+            self._initialize_model()
+        return self._model
 
     def _initialize_model(self):
         self._model = create_qwen_model(
@@ -94,7 +99,7 @@ class VLAnalysisTool(BaseTool):
                         {"type": "image", "image": f"data:image/png;base64,{imgbase64}"}
                     ],
                 )
-                response = self._model.invoke([message])
+                response = self.model.invoke([message])
                 return self._extract_text_result(response)
         except Exception as e:
             return f"分析图像时出错: {str(e)}"
@@ -128,7 +133,7 @@ class VLAnalysisTool(BaseTool):
                         {"type": "image", "image": f"data:image/png;base64,{imgbase64}"}
                     ],
                 )
-                response = await self._model.ainvoke([message])
+                response = await self.model.ainvoke([message])
                 return self._extract_text_result(response)
         except Exception as e:
             return f"分析图像时出错: {str(e)}"

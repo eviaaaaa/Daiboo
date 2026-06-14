@@ -1,39 +1,63 @@
+from __future__ import annotations
+
 import os
+from functools import lru_cache
+
 import dotenv
-from sqlalchemy import (
-    create_engine,
-    URL, # 引入 URL 对象，更安全地构建连接字符串
-)
+from sqlalchemy import URL, create_engine
+from sqlalchemy.engine import Engine
 
-# --- 1. 加载配置 ---
-dotenv.load_dotenv()
-DB_CONFIG = {
-    "host": os.getenv("DB_HOST"),
-    "port": os.getenv("DB_PORT"),
-    "dbname": os.getenv("DB_NAME"),
-    "user": os.getenv("DB_USER"),
-    "password": os.getenv("DB_PASSWORD")
-}
+from utils.config import project_env_file
 
-print("DB_CONFIG:", {k: v for k, v in DB_CONFIG.items() if k != 'password'})
-print("Password length:", len(DB_CONFIG["password"]) if DB_CONFIG["password"] else 0)
 
-# --- 创建全局 Engine (核心步骤) ---
+dotenv.load_dotenv(dotenv_path=(os.getenv("DAIBOO_ENV_FILE") or "").strip() or project_env_file())
 
-# 构建 SQLAlchemy 连接 URL
-# 使用 URL.create() 是更健壮的方式，可以自动处理特殊字符
-db_url = URL.create(
-    drivername="postgresql+psycopg",  # 使用 psycopg v3
-    username=DB_CONFIG["user"],
-    password=DB_CONFIG["password"],
-    host=DB_CONFIG["host"],
-    port=DB_CONFIG["port"],
-    database=DB_CONFIG["dbname"],
-)
-# 创建 Engine。这个 engine 对象应该在你的应用中是单例的。
-engine = create_engine(db_url, echo=False)
-# 遍历实体类，创建所有表
-# 注意：实际的表创建应该在需要的地方调用，而不是在模块导入时
-# Base.metadata.create_all(engine)
 
-print("\nSQLAlchemy Engine 创建成功！")
+def _database_config() -> dict[str, str | None]:
+    """Read database configuration from the current environment."""
+    return {
+        "host": os.getenv("DB_HOST"),
+        "port": os.getenv("DB_PORT"),
+        "dbname": os.getenv("DB_NAME"),
+        "user": os.getenv("DB_USER"),
+        "password": os.getenv("DB_PASSWORD"),
+    }
+
+
+def _database_url() -> URL:
+    config = _database_config()
+    return URL.create(
+        drivername=os.getenv("DB_DRIVER", "postgresql+psycopg"),
+        username=config["user"],
+        password=config["password"],
+        host=config["host"],
+        port=config["port"],
+        database=config["dbname"],
+    )
+
+
+@lru_cache(maxsize=1)
+def get_engine() -> Engine:
+    """Create the SQLAlchemy engine lazily.
+
+    Importing modules that reference ``database.engine`` should not eagerly
+    import the PostgreSQL driver or print credentials.  The real engine is
+    created only when application code opens a connection or session.
+    """
+    return create_engine(_database_url(), echo=False)
+
+
+class LazyEngine:
+    """Small proxy that preserves ``from database import engine`` call sites."""
+
+    def _engine(self) -> Engine:
+        return get_engine()
+
+    def __getattr__(self, name: str):
+        return getattr(self._engine(), name)
+
+    def __repr__(self) -> str:
+        return "<LazyEngine uninitialized>" if get_engine.cache_info().currsize == 0 else repr(self._engine())
+
+
+engine = LazyEngine()

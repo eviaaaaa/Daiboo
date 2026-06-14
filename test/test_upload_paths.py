@@ -46,6 +46,27 @@ def test_build_safe_upload_path_neutralizes_client_path_segments(local_upload_di
     file_path.relative_to(local_upload_dir.resolve())
 
 
+@pytest.mark.parametrize(
+    ("client_filename", "expected_display_name"),
+    [
+        ("../nested/report.md", "report.md"),
+        (r"C:\\Users\\alice\\Desktop\\avatar.PNG", "avatar.PNG"),
+        (r"folder/subfolder\\mixed.txt", "mixed.txt"),
+    ],
+)
+def test_build_safe_upload_path_accepts_common_client_path_styles(
+    local_upload_dir: Path,
+    client_filename: str,
+    expected_display_name: str,
+) -> None:
+    module = _load_upload_paths_module()
+    display_name, file_path = module.build_safe_upload_path(local_upload_dir, client_filename)
+
+    assert display_name == expected_display_name
+    assert file_path.parent == local_upload_dir.resolve()
+    file_path.relative_to(local_upload_dir.resolve())
+
+
 @pytest.mark.parametrize("filename", ["", "   ", ".", ".."])
 def test_build_safe_upload_path_rejects_invalid_names(local_upload_dir: Path, filename: str) -> None:
     module = _load_upload_paths_module()

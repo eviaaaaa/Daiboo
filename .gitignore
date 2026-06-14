@@ -2,6 +2,8 @@
 .env
 
 # Python
+.venv/
+venv/
 __pycache__/
 *.py[cod]
 *$py.class
@@ -21,10 +23,14 @@ test/vcr_cassettes/
 test.ipynb
 
 # Project Specific
+.hermes-notes/
+.browser-profile/
 screen/
 storage/
 temp_uploads/
 .temp_uploads/
+data/               # SQLite checkpoint (DAIBOO_CHECKPOINT_DIR)
 docx/
 .playwright-mcp/*
-tmp/*
+tmp/*data/
+tmp/
