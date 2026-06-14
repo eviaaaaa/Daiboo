@@ -1,15 +1,15 @@
 ---
-name: naxussurf-dev
-description: "NaxusSurf project development: architecture, testing, and workflows."
+name: daiboo-dev
+description: "Daiboo（代步）project development: architecture, testing, and workflows."
 version: 1.0.0
-tags: [naxussurf, development, testing]
+tags: [daiboo, development, testing]
 ---
 
-# NaxusSurf Development Guide
+# Daiboo（代步）Development Guide
 
 ## Project Architecture
 
-NaxusSurf is a FastAPI + LangGraph browser automation agent with these layers:
+Daiboo（代步）is a FastAPI + LangGraph browser automation agent with these layers:
 
 | Layer | Path | Purpose |
 |-------|------|---------|
@@ -59,4 +59,4 @@ python run_server.py
 Skills are in `skills/<name>/SKILL.md`. Each has YAML frontmatter (name, description, version) and Markdown body.
 - `utils/skills.py`: scanning, parsing, caching
 - `tools/skill_tools.py`: list_skills and view_skill tools
-- Configurable via `NAXUSSURF_SKILLS_DIR` env var
+- Configurable via `DAIBOO_SKILLS_DIR` env var

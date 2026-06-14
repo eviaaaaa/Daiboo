@@ -43,7 +43,7 @@ async def main():
         browser_agent = await create_browser_agent(mcp_tools)
 
         print("=" * 60)
-        print("NexusSurf 浏览器自动化助手")
+        print("Daiboo（代步）浏览器自动化助手")
         print("命令：'exit'/'quit' 退出 | 'new'/'reset' 新建对话")
         print("=" * 60)
 

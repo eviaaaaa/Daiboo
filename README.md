@@ -1,10 +1,10 @@
-# NexusSurf
+# Daiboo（代步）
 
 面向复杂网页任务的智能浏览器代理框架，基于 LLM + Playwright MCP 执行浏览器操作，并结合上下文压缩、人工审批、文档检索与任务经验复用能力。
 
 ## 项目简介
 
-NexusSurf 通过 **@playwright/mcp** + LangChain/LangGraph 组合，实现可交互的 Web Agent。它不是只执行固定脚本的浏览器自动化工具，而是把浏览器操作、视觉分析、终端读写、文档检索和经验检索放入统一的 Agent 工具链中，由模型按任务目标动态编排。浏览器操作通过 MCP (Model Context Protocol) 以 snapshot-ref 模式驱动，并使用持久会话保持跨工具调用的页面状态。
+Daiboo（代步）通过 **@playwright/mcp** + LangChain/LangGraph 组合，实现可交互的 Web Agent。它不是只执行固定脚本的浏览器自动化工具，而是把浏览器操作、视觉分析、终端读写、文档检索和经验检索放入统一的 Agent 工具链中，由模型按任务目标动态编排。浏览器操作通过 MCP (Model Context Protocol) 以 snapshot-ref 模式驱动，并使用持久会话保持跨工具调用的页面状态。
 
 - 支持自然语言驱动浏览器与辅助工具协同执行，MCP 已启用 vision 能力，可使用坐标类鼠标工具处理拖拽等场景。
 - 支持文档上传索引、文档检索和任务经验复用。
@@ -80,10 +80,10 @@ cp .env.example .env
 
 可选增强（不配置不影响运行）：
 
-- API 安全：`NAXUSSURF_API_KEY`（设置即启用 X-API-Key 认证）、`RATE_LIMIT`（默认 60 req/60s，设 0 关闭）
+- API 安全：`DAIBOO_API_KEY`（设置即启用 X-API-Key 认证）、`RATE_LIMIT`（默认 60 req/60s，设 0 关闭）
 - 日志：`LOG_LEVEL`（debug/info/warning/error，默认 info）、`LOG_FORMAT`（pretty/json）
-- Skills 目录：`NAXUSSURF_SKILLS_DIR`（默认 `skills/`）
-- 会话持久化：`NAXUSSURF_CHECKPOINT_DIR`（SQLite checkpoint，默认 `data/`）
+- Skills 目录：`DAIBOO_SKILLS_DIR`（默认 `skills/`）
+- 会话持久化：`DAIBOO_CHECKPOINT_DIR`（SQLite checkpoint，默认 `data/`）
 
 详见 `.env.example` 中注释。
 
@@ -96,7 +96,7 @@ cp .env.example .env
 python run_server.py
 
 # 或用 uv run（自动激活 venv + 安装缺失依赖）
-uv run naxussurf-serve
+uv run daiboo-serve
 ```
 
 启动后：
@@ -110,7 +110,7 @@ uv run naxussurf-serve
 python main.py
 
 # 或
-uv run naxussurf
+uv run daiboo
 ```
 
 支持命令：
@@ -208,7 +208,7 @@ tags: [tag1, tag2]
 详细步骤、命令、陷阱等...
 ```
 
-Skills 目录可通过环境变量 `NAXUSSURF_SKILLS_DIR` 覆盖（默认 `skills/`）。
+Skills 目录可通过环境变量 `DAIBOO_SKILLS_DIR` 覆盖（默认 `skills/`）。
 
 服务启动后自动扫描；前端 Skills 页面可查看列表和详情；Agent 在对话中通过 `list_skills` → `view_skill(name)` 加载。
 

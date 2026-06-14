@@ -1,4 +1,4 @@
-"""Tests for the NaxusSurf skills system."""
+"""Tests for the Daiboo skills system."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ def test_skills_dir_defaults_to_project_root():
 
 
 def test_skills_dir_respects_env(monkeypatch):
-    monkeypatch.setenv("NAXUSSURF_SKILLS_DIR", "/custom/skills")
+    monkeypatch.setenv("DAIBOO_SKILLS_DIR", "/custom/skills")
     if "utils.skills" in sys.modules:
         del sys.modules["utils.skills"]
     from utils.skills import _skills_dir as skills_dir
@@ -81,16 +81,16 @@ def test_load_skills_finds_example_skill():
     reload_skills()
     skills = load_skills()
     names = [s.name for s in skills]
-    assert "naxussurf-dev" in names, f"Expected naxussurf-dev in {names}"
+    assert "daiboo-dev" in names, f"Expected daiboo-dev in {names}"
 
 
 def test_get_skill_by_name():
     from utils.skills import get_skill_by_name
 
-    skill = get_skill_by_name("naxussurf-dev")
+    skill = get_skill_by_name("daiboo-dev")
     assert skill is not None
-    assert skill.name == "naxussurf-dev"
-    assert "NaxusSurf" in skill.description
+    assert skill.name == "daiboo-dev"
+    assert "Daiboo" in skill.description
     assert len(skill.content) > 100
 
 
@@ -104,12 +104,12 @@ def test_skills_summary_format():
     from utils.skills import skills_summary
 
     summary = skills_summary()
-    assert "naxussurf-dev" in summary
+    assert "daiboo-dev" in summary
 
 
 def test_load_skills_empty_dir(monkeypatch, tmp_path):
     # Clear cache first, then set env for this test only
-    monkeypatch.setenv("NAXUSSURF_SKILLS_DIR", str(tmp_path))
+    monkeypatch.setenv("DAIBOO_SKILLS_DIR", str(tmp_path))
     if "utils.skills" in sys.modules:
         del sys.modules["utils.skills"]
     from utils.skills import load_skills, reload_skills
@@ -130,7 +130,7 @@ def test_list_skills_tool_returns_available_skills():
     from tools.skill_tools import list_skills
 
     result = list_skills.invoke({})
-    assert "naxussurf-dev" in result
+    assert "daiboo-dev" in result
     assert "Available skills" in result
 
 
@@ -140,8 +140,8 @@ def test_view_skill_tool_returns_content():
 
     from tools.skill_tools import view_skill
 
-    result = view_skill.invoke({"name": "naxussurf-dev"})
-    assert "NaxusSurf Development Guide" in result
+    result = view_skill.invoke({"name": "daiboo-dev"})
+    assert "Daiboo（代步）Development Guide" in result
     assert "Project Architecture" in result
 
 

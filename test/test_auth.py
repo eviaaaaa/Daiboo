@@ -21,7 +21,7 @@ def _reset_rate_state() -> None:
 @pytest.fixture
 def app_no_auth() -> FastAPI:
     """未配置 API Key 的 app — 所有请求放行。"""
-    os.environ.pop("NAXUSSURF_API_KEY", None)
+    os.environ.pop("DAIBOO_API_KEY", None)
     app = FastAPI()
     app.add_middleware(AuthMiddleware)
 
@@ -35,7 +35,7 @@ def app_no_auth() -> FastAPI:
 @pytest.fixture
 def app_with_auth(monkeypatch) -> FastAPI:
     """配置了 API Key 的 app — 需要 X-API-Key header。"""
-    monkeypatch.setenv("NAXUSSURF_API_KEY", "secret123")
+    monkeypatch.setenv("DAIBOO_API_KEY", "secret123")
     app = FastAPI()
     app.add_middleware(AuthMiddleware)
 

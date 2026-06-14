@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""NaxusSurf API 认证与限流。
+"""Daiboo API 认证与限流。
 
 用法
     在 FastAPI app 上添加中间件：
@@ -11,7 +11,7 @@
         @app.get("/protected", dependencies=[Depends(require_auth)])
 
 环境变量
-    NAXUSSURF_API_KEY    设置后启用 API Key 认证；不设置则认证关闭（向后兼容）
+    DAIBOO_API_KEY    设置后启用 API Key 认证；不设置则认证关闭（向后兼容）
     RATE_LIMIT           每分钟请求上限（默认 60）；设 0 关闭限流
     RATE_LIMIT_WINDOW    滑动窗口秒数（默认 60）
 
@@ -36,7 +36,7 @@ from starlette.responses import JSONResponse
 # ── 配置（延迟读取环境变量，支持运行时 monkeypatch）───────────────────────────
 
 def _get_api_key() -> str | None:
-    return (os.getenv("NAXUSSURF_API_KEY") or "").strip() or None
+    return (os.getenv("DAIBOO_API_KEY") or "").strip() or None
 
 
 def _get_rate_limit() -> int:
@@ -100,7 +100,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
     """统一认证 + 限流中间件。
 
     通过 ASGI 中间件实现，无需 per-route 装饰器。
-    认证关闭时（NAXUSSURF_API_KEY 未设置），所有请求直接放行。
+    认证关闭时（DAIBOO_API_KEY 未设置），所有请求直接放行。
     """
 
     async def dispatch(self, request: Request, call_next: Callable) -> JSONResponse:

@@ -29,8 +29,9 @@ screen/
 storage/
 temp_uploads/
 .temp_uploads/
-data/               # SQLite checkpoint (NAXUSSURF_CHECKPOINT_DIR)
+data/               # SQLite checkpoint (DAIBOO_CHECKPOINT_DIR)
 docx/
 .playwright-mcp/*
 tmp/*data/
 tmp/
+.github/

@@ -17,9 +17,9 @@ def default_to_local_embeddings(monkeypatch, request):
     """
     nodeid = request.node.nodeid
     if any(test_file in nodeid for test_file in _PROVIDER_CONFIG_TESTS):
-        monkeypatch.delenv("NAXUSSURF_LOCAL_EMBEDDINGS", raising=False)
+        monkeypatch.delenv("DAIBOO_LOCAL_EMBEDDINGS", raising=False)
         return
-    monkeypatch.setenv("NAXUSSURF_LOCAL_EMBEDDINGS", "1")
+    monkeypatch.setenv("DAIBOO_LOCAL_EMBEDDINGS", "1")
 
     # Some provider-selection tests import the singleton with fake provider
     # classes. If later integration tests reuse that already-imported module,

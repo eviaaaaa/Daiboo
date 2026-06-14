@@ -9,7 +9,7 @@ tags: [browser, mcp, playwright, automation]
 
 ## Core Model
 
-NaxusSurf uses `@playwright/mcp` in **snapshot-ref** mode:
+Daiboo uses `@playwright/mcp` in **snapshot-ref** mode:
 - `browser_snapshot` returns a text tree with ref IDs like `@e5`, `@e12`
 - refs are temporary — page change invalidates all old refs
 - Always use the freshest snapshot before any click/type/fill

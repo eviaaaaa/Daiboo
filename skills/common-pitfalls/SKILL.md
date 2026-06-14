@@ -47,7 +47,7 @@ tags: [pitfalls, debugging, recovery, errors]
 - Is PostgreSQL running? (`pg_isready`)
 - Is the `vector` extension enabled? (`CREATE EXTENSION IF NOT EXISTS vector`)
 - Are DB credentials in `.env` correct?
-- For embedding failures: is `DASHSCOPE_API_KEY` set, or is `NAXUSSURF_LOCAL_EMBEDDINGS=1` for offline testing?
+- For embedding failures: is `DASHSCOPE_API_KEY` set, or is `DAIBOO_LOCAL_EMBEDDINGS=1` for offline testing?
 
 ## 7. Tab Confusion
 

@@ -17,6 +17,6 @@ def test_api_module_main_uses_configured_host_and_port(monkeypatch):
 
     assert len(calls) == 1
     app, host, port = calls[0]
-    assert getattr(app, "title") == "NexusSurf API"
+    assert getattr(app, "title") == "Daiboo API"
     assert host == "127.0.0.2"
     assert port == 8802

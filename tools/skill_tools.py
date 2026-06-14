@@ -1,4 +1,4 @@
-"""Skills tools for the NexusSurf agent.
+"""Skills tools for the Daiboo agent.
 
 Provides two tools:
 - list_skills: lists all available skills with descriptions.

@@ -89,8 +89,8 @@
 - Agent 系统提示词已加入第 9 节 Skills 使用规则；Agent 每次任务前应先 `list_skills`，有匹配时用 `view_skill(name)` 加载完整内容再执行。
 - API 新增 `GET /skills`（列表）和 `GET /skills/{name}`（详情）端点。
 - 前端新增 Skills 标签页：可查看技能列表、标签、版本，点击展开加载完整 Markdown 内容。
-- Skills 目录可通过 `NAXUSSURF_SKILLS_DIR` 环境变量覆盖，默认 `skills/`。
-- 当前已有一个示例技能：`naxussurf-dev`（NaxusSurf 项目架构与开发指南）。
+- Skills 目录可通过 `DAIBOO_SKILLS_DIR` 环境变量覆盖，默认 `skills/`。
+- 当前已有一个示例技能：`daiboo-dev`（Daiboo 项目架构与开发指南）。
 
 ## 7.4 当前仓库已知事实（2026-06-05 更新 — 结构化日志）
 
@@ -107,7 +107,7 @@
 ## 7.5 当前仓库已知事实（2026-06-05 更新 — API 认证/限流）
 
 - 新增 `utils/auth.py`：`AuthMiddleware`（BaseHTTPMiddleware），统一认证 + 限流。
-- **认证**：通过 `NAXUSSURF_API_KEY` 环境变量启用。设置后，所有请求须携带 `X-API-Key` header 匹配该值；不设则认证关闭（向后兼容）。
+- **认证**：通过 `DAIBOO_API_KEY` 环境变量启用。设置后，所有请求须携带 `X-API-Key` header 匹配该值；不设则认证关闭（向后兼容）。
 - **免鉴权路径**：`/health`、`/`、`/vendor/*` 始终跳过认证。
 - **限流**：滑动窗口算法，进程内内存计数（重启重置）。通过 `RATE_LIMIT`（默认 60）和 `RATE_LIMIT_WINDOW`（默认 60s）控制；`RATE_LIMIT=0` 关闭限流。
 - 中间件顺序：CORS → Auth → HTTP Logging。

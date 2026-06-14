@@ -1,7 +1,7 @@
 [project]
-name = "naxussurf"
+name = "daiboo"
 version = "0.1.0"
-description = "面向复杂网页任务的智能浏览器代理框架，基于 LLM + Playwright MCP"
+description = "Daiboo（代步）：面向复杂网页任务的智能浏览器代理框架，基于 LLM + Playwright MCP"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
@@ -9,15 +9,6 @@ authors = [
     { name = "eviaaaaa", email = "w2278596667@gmail.com" },
 ]
 keywords = ["browser-automation", "ai-agent", "playwright", "llm", "langgraph", "mcp"]
-
-[project.urls]
-Homepage = "https://github.com/eviaaaaa/NaxusSurf"
-Repository = "https://github.com/eviaaaaa/NaxusSurf.git"
-
-[project.scripts]
-naxussurf = "main:main"          # CLI 交互模式: naxussurf
-naxussurf-serve = "api:app"      # Web 服务: naxussurf-serve (uvicorn)
-
 dependencies = [
     "dashscope>=1.25",
     "fastapi>=0.125",
@@ -50,6 +41,14 @@ dependencies = [
     "docx2txt>=0.9",
     "uvicorn>=0.38",
 ]
+
+[project.urls]
+Homepage = "https://github.com/eviaaaaa/Daiboo"
+Repository = "https://github.com/eviaaaaa/Daiboo.git"
+
+[project.scripts]
+daiboo = "main:main"          # CLI 交互模式: daiboo
+daiboo-serve = "api:app"      # Web 服务: daiboo-serve (uvicorn)
 
 [project.optional-dependencies]
 dev = [

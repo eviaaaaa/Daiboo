@@ -74,7 +74,7 @@ def test_embedding_uses_dashscope_when_dashscope_key_set(monkeypatch):
 def test_embedding_falls_back_to_local_without_any_key(monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("DASHSCOPE_API_KEY", raising=False)
-    monkeypatch.delenv("NAXUSSURF_LOCAL_EMBEDDINGS", raising=False)
+    monkeypatch.delenv("DAIBOO_LOCAL_EMBEDDINGS", raising=False)
 
     module = _load_embeddings_module()
     embeddings = module.QwenEmbeddings()

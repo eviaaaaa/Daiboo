@@ -74,7 +74,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         state.mcp_tools = mcp_tools
 
         # SQLite checkpointer：会话跨重启持久化
-        db_dir = Path(os.getenv("NAXUSSURF_CHECKPOINT_DIR", str(Path(__file__).resolve().parent / "data")))
+        db_dir = Path(os.getenv("DAIBOO_CHECKPOINT_DIR", str(Path(__file__).resolve().parent / "data")))
         db_dir.mkdir(parents=True, exist_ok=True)
         db_path = str(db_dir / "agent_checkpoints.db")
         logger.info("Opening checkpoint DB: {}", db_path)
@@ -92,7 +92,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(
     lifespan=lifespan,
-    title="NexusSurf API",
+    title="Daiboo API",
     description=(
         "提供浏览器自动化对话、可用工具查询和文档上传索引能力。"
         "其中 `/chat` 使用 NDJSON 流式返回执行过程与最终消息。"
@@ -108,7 +108,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 认证 + 限流（NAXUSSURF_API_KEY 未设时自动关闭）
+# 认证 + 限流（DAIBOO_API_KEY 未设时自动关闭）
 app.add_middleware(AuthMiddleware)
 
 # HTTP 请求日志中间件

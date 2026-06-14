@@ -41,7 +41,7 @@ def _local_embedding(text: str) -> list[float]:
 class QwenEmbeddings(Embeddings):
     def __init__(self, model: str = "text-embedding-v1"):
         self.model = model
-        self._use_local_embeddings = _truthy_env("NAXUSSURF_LOCAL_EMBEDDINGS")
+        self._use_local_embeddings = _truthy_env("DAIBOO_LOCAL_EMBEDDINGS")
         self._openai_embeddings = None
         api_key = _strip_env("OPENAI_API_KEY")
         if not self._use_local_embeddings and api_key and OpenAIEmbeddings is not None:

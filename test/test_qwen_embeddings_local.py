@@ -13,7 +13,7 @@ def _load_embeddings_module():
 
 
 def test_local_embedding_mode_returns_stable_1536_dimensional_vectors(monkeypatch):
-    monkeypatch.setenv("NAXUSSURF_LOCAL_EMBEDDINGS", "1")
+    monkeypatch.setenv("DAIBOO_LOCAL_EMBEDDINGS", "1")
     module = _load_embeddings_module()
     embeddings = module.QwenEmbeddings()
 
@@ -27,7 +27,7 @@ def test_local_embedding_mode_returns_stable_1536_dimensional_vectors(monkeypatc
 
 
 def test_local_embedding_mode_supports_document_batches(monkeypatch):
-    monkeypatch.setenv("NAXUSSURF_LOCAL_EMBEDDINGS", "1")
+    monkeypatch.setenv("DAIBOO_LOCAL_EMBEDDINGS", "1")
     module = _load_embeddings_module()
 
     vectors = module.QwenEmbeddings().embed_documents(["alpha", "beta"])

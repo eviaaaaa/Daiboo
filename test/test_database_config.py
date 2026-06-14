@@ -16,9 +16,9 @@ def _load_database_module(monkeypatch, *, env_file: str | None = None, cwd: Path
         monkeypatch.chdir(cwd)
     monkeypatch.setattr(dotenv, "load_dotenv", fake_load_dotenv)
     if env_file is None:
-        monkeypatch.delenv("NEXUSSURF_ENV_FILE", raising=False)
+        monkeypatch.delenv("DAIBOO_ENV_FILE", raising=False)
     else:
-        monkeypatch.setenv("NEXUSSURF_ENV_FILE", env_file)
+        monkeypatch.setenv("DAIBOO_ENV_FILE", env_file)
 
     spec = importlib.util.spec_from_file_location("test_postgresql_database_module", module_path)
     assert spec is not None

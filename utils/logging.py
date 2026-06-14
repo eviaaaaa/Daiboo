@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""NaxusSurf 统一日志配置。
+"""Daiboo 统一日志配置。
 
 用法
     在 api.py / main.py 入口最顶部调用一次：

@@ -1,4 +1,4 @@
-"""NaxusSurf Skills 加载与管理模块。
+"""Daiboo Skills 加载与管理模块。
 
 每个 skill 是一个目录，包含一个 SKILL.md 文件（YAML frontmatter + Markdown body）。
 目录扫描、解析与缓存集中在此模块，供 Agent 工具与 API 复用。
@@ -16,7 +16,7 @@ from typing import Optional
 # ---------------------------------------------------------------------------
 
 # Skills 目录：可通过环境变量覆盖，默认从仓库根目录解析
-_ENV_SKILLS_DIR = "NAXUSSURF_SKILLS_DIR"
+_ENV_SKILLS_DIR = "DAIBOO_SKILLS_DIR"
 _SKILL_ENTRY = "SKILL.md"
 _FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 

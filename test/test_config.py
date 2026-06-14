@@ -66,10 +66,10 @@ def test_app_port_rejects_invalid_env_port(monkeypatch, port: str) -> None:
 
 def test_upload_dir_expands_user_path(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
-    monkeypatch.setenv("UPLOAD_DIR", "~/naxussurf-uploads")
+    monkeypatch.setenv("UPLOAD_DIR", "~/daiboo-uploads")
     config = _load_config_module()
 
-    assert config.upload_dir() == tmp_path / "naxussurf-uploads"
+    assert config.upload_dir() == tmp_path / "daiboo-uploads"
 
 
 def test_upload_dir_resolves_relative_path_from_project_root(monkeypatch) -> None:
