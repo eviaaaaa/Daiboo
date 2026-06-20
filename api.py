@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from langchain.messages import HumanMessage, AIMessage
 from langgraph.types import Command
-from langgraph.checkpoint.sqlite import SqliteSaver
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from typing import TYPE_CHECKING, Any, AsyncIterator, Optional
 import json
 import shutil
@@ -79,7 +79,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         db_path = str(db_dir / "agent_checkpoints.db")
         logger.info("Opening checkpoint DB: {}", db_path)
 
-        with SqliteSaver.from_conn_string(db_path) as checkpointer:
+        async with AsyncSqliteSaver.from_conn_string(db_path) as checkpointer:
             # 创建 Agent
             logger.info("Creating Agent...")
             state.agent = await create_browser_agent(mcp_tools, checkpointer=checkpointer)

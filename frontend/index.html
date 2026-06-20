@@ -552,6 +552,9 @@
                                     </button>
                                 </div>
                             </div>
+                            <div v-if="ragSearchStatus" class="mt-6 rounded-2xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-emerald-100 text-sm">
+                                {{ ragSearchStatus }}
+                            </div>
                             <div v-if="ragError" class="mt-6 rounded-2xl border border-red-400/40 bg-red-500/10 px-4 py-3 text-red-200 text-sm">
                                 {{ ragError }}
                             </div>
@@ -591,7 +594,7 @@
                         </div>
                     </div>
 
-                    <div v-if="ragSearchResult" class="space-y-6">
+                    <div v-if="ragSearchResult" ref="ragResultsSection" class="space-y-6">
                         <div class="data-surface rounded-3xl p-6">
                             <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                                 <div>
@@ -791,7 +794,7 @@
     </div>
 
     <script>
-        const { createApp, ref } = Vue;
+        const { createApp, nextTick, ref } = Vue;
         const API_BASE = window.location.origin;
 
         createApp({
@@ -815,6 +818,8 @@
                 const isSearchingRag = ref(false);
                 const ragSearchResult = ref(null);
                 const ragError = ref('');
+                const ragSearchStatus = ref('');
+                const ragResultsSection = ref(null);
                 const ragSummary = ref(null);
                 const ragSummaryError = ref('');
                 const skills = ref([]);
@@ -1020,6 +1025,8 @@
 
                     isSearchingRag.value = true;
                     ragError.value = '';
+                    ragSearchStatus.value = '正在检索...';
+                    ragSearchResult.value = null;
 
                     try {
                         const res = await fetch(`${API_BASE}/rag/search`, {
@@ -1037,9 +1044,17 @@
                             throw new Error(err.detail || '检索接口调用失败');
                         }
 
-                        ragSearchResult.value = await res.json();
+                        const data = await res.json();
+                        ragSearchResult.value = data;
+                        const largeCount = data?.strategies?.large_chunks?.length || 0;
+                        const smallCount = data?.strategies?.small_chunks?.length || 0;
+                        const hierarchicalCount = data?.strategies?.hierarchical?.length || 0;
+                        ragSearchStatus.value = `检索完成：大块 ${largeCount} 条，小块 ${smallCount} 条，层级聚合 ${hierarchicalCount} 条。`;
+                        await nextTick();
+                        ragResultsSection.value?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                     } catch (e) {
                         ragError.value = e.message || '检索失败';
+                        ragSearchStatus.value = '';
                     } finally {
                         isSearchingRag.value = false;
                     }
@@ -1048,6 +1063,7 @@
                 const clearRagSearch = () => {
                     ragSearchResult.value = null;
                     ragError.value = '';
+                    ragSearchStatus.value = '';
                     ragQuery.value = '';
                 };
 
@@ -1121,6 +1137,8 @@
                     isSearchingRag,
                     ragSearchResult,
                     ragError,
+                    ragSearchStatus,
+                    ragResultsSection,
                     ragSummary,
                     ragSummaryError,
                     runRagSearch,

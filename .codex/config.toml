@@ -1,0 +1,9 @@
+[mcp_servers.Office-Word-MCP-Server]
+command = "cmd"
+args = [
+    "/c",
+    "npx",
+    "-y",
+    "mcp-remote",
+    "https://server.smithery.ai/@GongRzhe/Office-Word-MCP-Server/mcp",
+]
