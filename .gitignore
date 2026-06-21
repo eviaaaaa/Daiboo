@@ -29,7 +29,8 @@ screen/
 storage/
 temp_uploads/
 .temp_uploads/
-data/               # SQLite checkpoint (DAIBOO_CHECKPOINT_DIR)
+# SQLite checkpoint (DAIBOO_CHECKPOINT_DIR)
+data/
 docx/
 .playwright-mcp/*
 tmp/*data/
