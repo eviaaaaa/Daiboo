@@ -11,7 +11,7 @@
     - 依赖 `hcaptcha-challenger`。
     - LLM provider 走 `extensions/llm_adapter.py`：
         * LLM_PROVIDER=glm + GLM_API_KEY 已配置时，自动 monkey-patch google.genai，
-          所有请求改走 GLM_BASE_URL（默认 https://open.bigmodel.cn/api/paas/v4）。
+          所有请求改走 GLM_BASE_URL（默认 https://api.z.ai/api/paas/v4）。
           推荐模型 GLM_MODEL=glm-4.6v。
         * LLM_PROVIDER=gemini 或缺省时，走原生 Gemini，需要真实 GEMINI_API_KEY。
     - hcaptcha-challenger 在 AgentConfig 内强校验 GEMINI_API_KEY 字段非空，

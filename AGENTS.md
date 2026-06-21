@@ -29,7 +29,7 @@
 - `utils/my_browser.py`: 浏览器进程管理（启动、CDP 端口检测、清理），启动流程全异步。
 - `context/context_manager.py`: 上下文压缩、归档、消息重写。
 - `tools/`: 工具定义。当前包含：`capture_element_context_tool`、`vision_analysis_tool`、`delay_tool_call`、`terminal_tools`、`rag_tools`、`web_observe_tool`。浏览器原子操作工具由 MCP 会话动态加载，不在此目录。
-- `tools/_simphtml/`: web_observe 工具与 diff middleware 的共享内部模块（`opthtml.js`、`find_main_list.js`、`observer.py`、`post_process.py`、`diff.py`），算法源自 GenericAgent (MIT)，详见 `docx/genericagent_investigation.md`。
+- `tools/_simphtml/`: web_observe 工具与 diff middleware 的共享内部模块（`opthtml.js`、`find_main_list.js`、`observer.py`、`post_process.py`、`diff.py`），算法源自 GenericAgent (MIT)。
 - `rag/`: 检索与向量相关逻辑。
 - `loggers/`: 记录、经验总结、diff 中间件（`diff_middleware.py` 给 MCP 写动作自动附 DOM diff + 瞬时文本）。
 - `skills/`: Skills 技能目录。每个子目录包含一个 `SKILL.md`（YAML frontmatter + Markdown body）。加载逻辑在 `utils/skills.py`，Agent 工具在 `tools/skill_tools.py`。
@@ -59,7 +59,7 @@
 - 已废弃并删除的工具：`fill_text_tool`、`get_all_element_tool`、`get_page_img_tool`、`playwright_mcp_tool`。
 - `context/context_manager.py` 存在且为生效中间件，支持旧消息压缩和字符硬阈值双触发。
 - `context/state_manager.py`、`context/assembly_engine.py`、`context/dynamic_id/` 当前不存在。
-- `docx/` 下内容主要是设计和过程文档，不等于运行时代码。
+- 历史调研/过程文档不等于运行时代码；不要把未跟踪的设计文档当作已实现能力。
 - `loggers/screen_logger.py` 仅保留文字日志，不再持有 ScreenshotHelper / CDP 连接。
 - `ToolNode` 已全局修补 `_handle_tool_errors = True`，MCP 工具异常不会导致 Agent 直接崩溃。
 - `README.md` 当前约定的 conda 环境名是 `langchainenv`。
@@ -70,7 +70,7 @@
 - 新增 `tools/_simphtml/` 内部模块（opthtml.js / find_main_list.js / observer.py / post_process.py / diff.py），不对外暴露。
 - 新增 `loggers/diff_middleware.py`，给所有"会改页面状态"的 MCP 浏览器工具自动附 `[diff]` 与 `[transients]` 字段。挂在 `agent_factory` 的 middleware 链中、`delay_tool_call` 之前。
 - `prompt/system_prompt.py` 已加入 4.5（web_observe 选择规则）、5.1-5.4（标签页/受控组件/跨域 iframe/diff 结果阅读）、9.1（工具降级阶梯）。
-- 调研依据：`docx/genericagent_investigation.md`；落地计划：`docx/genericagent_improvement_plan.md`。
+- web_observe 与 diff middleware 的实现以当前 `tools/_simphtml/`、`tools/web_observe_tool.py`、`loggers/diff_middleware.py` 为准。
 
 ## 7.2 当前仓库已知事实（2026-05-07 更新）
 

@@ -41,12 +41,12 @@ pip install hcaptcha-challenger loguru
 
 LLM provider 二选一在 `.env` 配置：
 
-**A. 走 GLM（推荐，BigModel 免费额度够用）**
+**A. 走 GLM / Z.ai 兼容接口（推荐）**
 
 ```
 LLM_PROVIDER=glm
 GLM_API_KEY=...
-GLM_BASE_URL=https://open.bigmodel.cn/api/paas/v4
+GLM_BASE_URL=https://api.z.ai/api/paas/v4
 GLM_MODEL=glm-4.6v
 ```
 

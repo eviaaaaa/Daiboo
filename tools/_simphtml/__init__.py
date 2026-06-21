@@ -1,7 +1,7 @@
 """simphtml 内部模块。
 
 源自 https://github.com/lsdefine/GenericAgent (MIT License) 的 simphtml.py，
-移植到本仓库做 LLM-friendly 的页面观察。详见 docx/genericagent_investigation.md。
+移植到本仓库做 LLM-friendly 的页面观察。当前实现以本目录代码为准。
 
 模块组织：
 - opthtml.js / find_main_list.js: 注入到浏览器执行的 JS（不直接 import，由 Python 读取为字符串）

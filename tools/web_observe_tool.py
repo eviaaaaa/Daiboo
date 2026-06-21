@@ -12,8 +12,8 @@
 实现路径：通过 MCP 加载好的 `browser_evaluate` 工具注入 `tools/_simphtml/opthtml.js`，
 拿回简化后的 HTML 字符串后做 BeautifulSoup 二次清洗 + 预算式 smart_truncate。
 
-源算法来自 https://github.com/lsdefine/GenericAgent (MIT)。详见
-docx/genericagent_investigation.md 与 docx/genericagent_improvement_plan.md。
+源算法来自 https://github.com/lsdefine/GenericAgent (MIT)。当前实现以
+tools/_simphtml/、本文件和 loggers/diff_middleware.py 为准。
 """
 from __future__ import annotations
 

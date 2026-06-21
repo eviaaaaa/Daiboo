@@ -21,6 +21,7 @@ Daiboo（代步）is a FastAPI + LangGraph browser automation agent with these l
 | Prompt | `prompt/system_prompt.py` | Agent system instructions |
 | RAG | `rag/` | PGVector document retrieval and experience search |
 | Context | `context/context_manager.py` | Message compression middleware |
+| Chat History | `utils/chat_history.py` | Web session history JSON persistence, list/read/delete APIs |
 | Frontend | `frontend/index.html` | Vue.js SPA, same-origin API |
 
 ## Running Tests
@@ -43,6 +44,13 @@ python run_server.py
 # API at http://127.0.0.1:8801
 # CDP at ws://127.0.0.1:9222
 ```
+
+## Web Session History
+
+- `/chat` appends user/agent messages by `thread_id`.
+- `/chat/sessions`, `/chat/sessions/{thread_id}`, and `DELETE /chat/sessions/{thread_id}` expose list/read/delete for the frontend history sidebar.
+- Default file: `DAIBOO_CHECKPOINT_DIR/chat_history.json` under `data/`; override with `DAIBOO_CHAT_HISTORY_FILE`.
+- `data/` is runtime state and ignored by Git. Do not commit checkpoint databases or chat-history JSON.
 
 ## Common Pitfalls
 
