@@ -67,16 +67,18 @@ class HybridSearchService:
         candidate_k = top_k * 3 if use_rerank else top_k
 
         # --- A 路：向量检索（Vector Search）---
-        # 动态获取模型的 embedding 字段名
+        # 动态获取模型的 embedding 字段名。
+        # SQLAlchemy InstrumentedAttribute 在部分版本下不直接暴露 Vector type，
+        # 因此先通过 mapper.columns 检测，失败时回退到项目约定的 embedding 字段。
         embedding_field_name = None
-        if hasattr(model_class, '__mapper__'):
-            for attr_name in dir(model_class):
-                if not attr_name.startswith('_'):
-                    attr = getattr(model_class, attr_name, None)
-                    if hasattr(attr, 'type') and hasattr(attr.type, '__class__'):
-                        if 'Vector' in attr.type.__class__.__name__:
-                            embedding_field_name = attr_name
-                            break
+        mapper = getattr(model_class, "__mapper__", None)
+        if mapper is not None:
+            for column in mapper.columns:
+                if "Vector" in column.type.__class__.__name__:
+                    embedding_field_name = column.key
+                    break
+        if embedding_field_name is None and hasattr(model_class, "embedding"):
+            embedding_field_name = "embedding"
         
         vector_results = []
         if embedding_field_name:

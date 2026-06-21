@@ -42,8 +42,8 @@ class _GLMSettingsStub:
 
     def __init__(self) -> None:
         self.GLM_API_KEY = _SecretStr(_os.getenv("GLM_API_KEY", ""))
-        self.GLM_BASE_URL = _os.getenv("GLM_BASE_URL", "https://open.bigmodel.cn/api/paas/v4")
-        self.GLM_MODEL = _os.getenv("GLM_MODEL", "glm-4.5v")
+        self.GLM_BASE_URL = _os.getenv("GLM_BASE_URL", "https://api.z.ai/api/paas/v4")
+        self.GLM_MODEL = _os.getenv("GLM_MODEL", "glm-4.6v")
         self.GEMINI_API_KEY = _SecretStr(_os.getenv("GEMINI_API_KEY", ""))
         self.GEMINI_BASE_URL = _os.getenv("GEMINI_BASE_URL", "")
         self.GEMINI_MODEL = _os.getenv("GEMINI_MODEL", "gemini-2.5-pro")
@@ -942,7 +942,7 @@ class _GLMAsyncModels:
 
     def _to_image_part(self, payload: bytes, mime_type: str) -> dict[str, Any]:
         encoded = base64.b64encode(payload).decode("utf-8")
-        return {"type": "image_url", "image_url": {"url": encoded}}
+        return {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{encoded}"}}
 
     def _part_to_content_item(self, part: Any) -> dict[str, Any] | None:
         text = getattr(part, "text", None)

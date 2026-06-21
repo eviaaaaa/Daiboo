@@ -97,3 +97,15 @@ def test_frontend_skills_view_has_loading_error_and_empty_states():
     assert "toggleSkill" in html
     assert "expandedSkill" in html
     assert "encodeURIComponent(name)" in html
+
+
+def test_frontend_exposes_chat_history_controls():
+    html = _frontend_html()
+
+    assert "历史会话" in html
+    assert "fetchChatSessions" in html
+    assert "loadChatSession" in html
+    assert "deleteChatSession" in html
+    assert "startNewChat" in html
+    assert "`${API_BASE}/chat/sessions`" in html
+    assert "`${API_BASE}/chat/sessions/${encodeURIComponent(sessionId)}`" in html
