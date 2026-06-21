@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from langchain.messages import HumanMessage, AIMessage
 from langgraph.types import Command
-from langgraph.checkpoint.sqlite import SqliteSaver
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from typing import TYPE_CHECKING, Any, AsyncIterator, Optional
 import json
 import shutil
@@ -23,6 +23,12 @@ from utils.auth import AuthMiddleware
 from utils.config import app_host, app_port, project_env_file
 from utils.logging import setup_logging
 from utils.qwen_model import normalize_content
+from utils.chat_history import (
+    append_chat_message,
+    delete_chat_session,
+    get_chat_session,
+    list_chat_sessions,
+)
 
 load_dotenv(dotenv_path=project_env_file())
 setup_logging()
@@ -79,7 +85,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         db_path = str(db_dir / "agent_checkpoints.db")
         logger.info("Opening checkpoint DB: {}", db_path)
 
-        with SqliteSaver.from_conn_string(db_path) as checkpointer:
+        async with AsyncSqliteSaver.from_conn_string(db_path) as checkpointer:
             # 创建 Agent
             logger.info("Creating Agent...")
             state.agent = await create_browser_agent(mcp_tools, checkpointer=checkpointer)
@@ -134,6 +140,35 @@ class ChatRequest(BaseModel):
 
     message: str = Field(..., description="用户输入的消息内容，或在中断恢复场景下提交的审批结果。")
     thread_id: str = Field("default", description="会话线程 ID，用于复用同一条 LangGraph 对话上下文。")
+
+
+class ChatHistoryMessage(BaseModel):
+    """持久化聊天消息。"""
+
+    role: str = Field(..., description="消息角色，当前为 user 或 agent。")
+    content: str = Field(..., description="消息正文。")
+    created_at: str = Field(..., description="消息创建时间，UTC ISO 8601。")
+
+
+class ChatSessionSummary(BaseModel):
+    """聊天会话概要。"""
+
+    thread_id: str = Field(..., description="会话线程 ID。")
+    title: str = Field(..., description="会话标题，默认取首条用户消息摘要。")
+    created_at: str = Field(..., description="会话创建时间，UTC ISO 8601。")
+    updated_at: str = Field(..., description="会话最后更新时间，UTC ISO 8601。")
+    message_count: int = Field(..., description="会话中已持久化的消息数量。")
+    last_message: str = Field("", description="最后一条消息的摘要。")
+
+
+class ChatSessionDetail(BaseModel):
+    """聊天会话详情。"""
+
+    thread_id: str = Field(..., description="会话线程 ID。")
+    title: str = Field(..., description="会话标题。")
+    created_at: str = Field(..., description="会话创建时间，UTC ISO 8601。")
+    updated_at: str = Field(..., description="会话最后更新时间，UTC ISO 8601。")
+    messages: list[ChatHistoryMessage] = Field(default_factory=list, description="会话消息列表。")
 
 
 class ToolInfo(BaseModel):
@@ -279,6 +314,26 @@ async def chat(request: ChatRequest) -> StreamingResponse:
     """流式执行 Agent 对话。"""
 
     async def event_generator() -> AsyncIterator[str]:
+        agent_messages: list[str] = []
+        append_chat_message(request.thread_id, "user", request.message)
+
+        if os.getenv("DAIBOO_DEMO_MODE", "").lower() in {"1", "true", "yes", "on"}:
+            demo_events = [
+                {"type": "log", "content": f"收到任务：{request.message}"},
+                {"type": "log", "content": "演示模式：正在规划浏览器自动化步骤..."},
+                {"type": "tool", "content": "browser_snapshot → 读取页面结构"},
+                {"type": "tool", "content": "web_observe → 提取页面主体内容"},
+                {"type": "message", "content": "正常。Daiboo 已就绪：Chat、浏览器工具、RAG、Tools 与 Skills 页面均可用于录屏演示。"},
+            ]
+            for event in demo_events:
+                if event["type"] == "message":
+                    agent_messages.append(event["content"])
+                yield json.dumps(event, ensure_ascii=False) + "\n"
+                await asyncio.sleep(0.35)
+            if agent_messages:
+                append_chat_message(request.thread_id, "agent", "\n\n".join(agent_messages))
+            return
+
         config: "RunnableConfig" = {"configurable": {"thread_id": request.thread_id}, "recursion_limit": 30}
 
         # 检查是否存在中断状态
@@ -325,8 +380,10 @@ async def chat(request: ChatRequest) -> StreamingResponse:
                     messages = chunk["model"]["messages"]
                     for msg in messages:
                         if isinstance(msg, AIMessage):
-                            data = json.dumps({"type": "message", "content": normalize_content(msg.content)}, ensure_ascii=False)
+                            message_content = normalize_content(msg.content)
+                            data = json.dumps({"type": "message", "content": message_content}, ensure_ascii=False)
                             yield f"{data}\n"
+                            agent_messages.append(message_content)
                             is_message = True
 
                 if not is_message:
@@ -343,12 +400,56 @@ async def chat(request: ChatRequest) -> StreamingResponse:
                 data = json.dumps({"type": "interrupt", "content": "Task interrupted. Approval needed."}, ensure_ascii=False)
                 yield f"{data}\n"
 
+            if agent_messages:
+                append_chat_message(request.thread_id, "agent", "\n\n".join(agent_messages))
+
         except Exception as e:
             logger.exception("Chat streaming error for thread {}", request.thread_id)
             data = json.dumps({"type": "error", "content": str(e)}, ensure_ascii=False)
             yield f"{data}\n"
 
     return StreamingResponse(event_generator(), media_type="application/x-ndjson")
+
+
+@app.get(
+    "/chat/sessions",
+    summary="列出聊天历史会话",
+    description="返回已持久化的聊天会话概要，按最近更新时间倒序排列。",
+    response_model=list[ChatSessionSummary],
+    tags=["chat"],
+)
+async def list_chat_sessions_endpoint() -> list[dict[str, Any]]:
+    """列出历史会话。"""
+    return list_chat_sessions()
+
+
+@app.get(
+    "/chat/sessions/{thread_id}",
+    summary="读取聊天历史会话",
+    description="按 thread_id 返回完整聊天消息，用于前端回溯旧会话。",
+    response_model=ChatSessionDetail,
+    responses={404: {"model": ErrorResponse, "description": "未找到该会话。"}},
+    tags=["chat"],
+)
+async def get_chat_session_endpoint(thread_id: str) -> dict[str, Any]:
+    """读取指定历史会话。"""
+    session = get_chat_session(thread_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail=f"Chat session '{thread_id}' not found")
+    return session
+
+
+@app.delete(
+    "/chat/sessions/{thread_id}",
+    summary="删除聊天历史会话",
+    description="删除指定 thread_id 的持久化聊天历史。不会清理 LangGraph checkpoint 状态。",
+    response_model=dict[str, bool],
+    tags=["chat"],
+)
+async def delete_chat_session_endpoint(thread_id: str) -> dict[str, bool]:
+    """删除指定历史会话。"""
+    return {"deleted": delete_chat_session(thread_id)}
+
 
 @app.get(
     "/tools",
@@ -373,7 +474,6 @@ class SkillSummary(BaseModel):
     name: str = Field(..., description="技能名称。")
     description: str = Field(..., description="技能用途说明。")
     version: str = Field("0.0.0", description="技能版本号。")
-    path: str = Field("", description="技能目录本地路径。")
     tags: list[str] | None = Field(None, description="技能标签列表。")
 
 

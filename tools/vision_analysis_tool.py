@@ -3,6 +3,8 @@ import logging
 import os
 from typing import Any, Optional, Type
 
+import httpx
+
 from langchain_core.callbacks import (
     AsyncCallbackManagerForToolRun,
     CallbackManagerForToolRun,
@@ -25,7 +27,10 @@ class ImageAnalysisInput(BaseModel):
 
 class VLAnalysisTool(BaseTool):
     """
-    使用 Qwen3-VL 多模态模型分析图像的 LangChain 工具。
+    使用视觉模型分析图像的 LangChain 工具。
+
+    默认保持 Qwen3-VL；当 VISION_PROVIDER=glm 或 LLM_PROVIDER=glm 时，
+    使用 GLM OpenAI-compatible `/chat/completions` 视觉接口。
     """
 
     name: str = "vl_analysis_tool"
@@ -38,6 +43,16 @@ class VLAnalysisTool(BaseTool):
     model_name: str = "qwen3-vl-plus"
     _model = None
 
+    @property
+    def vision_provider(self) -> str:
+        return (os.getenv("VISION_PROVIDER") or os.getenv("LLM_PROVIDER") or "qwen").strip().lower()
+
+    @property
+    def active_model_name(self) -> str:
+        if self.vision_provider == "glm":
+            return (os.getenv("VISION_MODEL") or os.getenv("GLM_MODEL") or "glm-5").strip()
+        return (os.getenv("VISION_MODEL") or self.model_name).strip()
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
@@ -49,7 +64,7 @@ class VLAnalysisTool(BaseTool):
 
     def _initialize_model(self):
         self._model = create_qwen_model(
-            model_name=self.model_name,
+            model_name=self.active_model_name,
         )
 
     @staticmethod
@@ -70,6 +85,82 @@ class VLAnalysisTool(BaseTool):
 
         return str(result) if result else "无法识别验证码，请手动输入"
 
+    @staticmethod
+    def _build_data_url(image_path: str) -> str:
+        suffix = os.path.splitext(image_path)[1].lower()
+        mime_type = {
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".png": "image/png",
+            ".webp": "image/webp",
+            ".gif": "image/gif",
+        }.get(suffix, "image/png")
+        with open(image_path, "rb") as img:
+            encoded = base64.b64encode(img.read()).decode("utf-8")
+        return f"data:{mime_type};base64,{encoded}"
+
+    def _build_glm_payload(self, image_path: str, prompt: str) -> dict[str, Any]:
+        return {
+            "model": self.active_model_name,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": self._build_model_prompt(prompt)},
+                        {"type": "image_url", "image_url": {"url": self._build_data_url(image_path)}},
+                    ],
+                }
+            ],
+            "temperature": 0,
+        }
+
+    @staticmethod
+    def _extract_glm_text(data: dict[str, Any]) -> str:
+        choices = data.get("choices") or []
+        if not choices:
+            return "无法识别验证码，GLM 未返回候选结果"
+        content = (choices[0].get("message") or {}).get("content")
+        if isinstance(content, str):
+            return content.strip() or "无法识别验证码，GLM 返回为空"
+        if isinstance(content, list):
+            text = "\n".join(
+                item.get("text", "")
+                for item in content
+                if isinstance(item, dict) and item.get("type") == "text"
+            ).strip()
+            return text or "无法识别验证码，GLM 返回为空"
+        return str(content) if content else "无法识别验证码，GLM 返回为空"
+
+    def _glm_endpoint(self) -> str:
+        base_url = (os.getenv("GLM_BASE_URL") or "https://api.z.ai/api/paas/v4").rstrip("/")
+        return base_url if base_url.endswith("/chat/completions") else f"{base_url}/chat/completions"
+
+    def _run_glm(self, image_path: str, prompt: str) -> str:
+        api_key = (os.getenv("GLM_API_KEY") or "").strip()
+        if not api_key:
+            return "分析图像时出错: VISION_PROVIDER=glm 但 GLM_API_KEY 为空。"
+        with httpx.Client(timeout=httpx.Timeout(120.0, connect=30.0)) as client:
+            response = client.post(
+                self._glm_endpoint(),
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                json=self._build_glm_payload(image_path, prompt),
+            )
+            response.raise_for_status()
+            return self._extract_glm_text(response.json())
+
+    async def _arun_glm(self, image_path: str, prompt: str) -> str:
+        api_key = (os.getenv("GLM_API_KEY") or "").strip()
+        if not api_key:
+            return "分析图像时出错: VISION_PROVIDER=glm 但 GLM_API_KEY 为空。"
+        async with httpx.AsyncClient(timeout=httpx.Timeout(120.0, connect=30.0)) as client:
+            response = await client.post(
+                self._glm_endpoint(),
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                json=self._build_glm_payload(image_path, prompt),
+            )
+            response.raise_for_status()
+            return self._extract_glm_text(response.json())
+
     def _run(
         self,
         image_path: str,
@@ -81,6 +172,9 @@ class VLAnalysisTool(BaseTool):
             return f"错误：图像文件不存在于路径 {image_path}。请提供有效的图像路径。"
 
         try:
+            if self.vision_provider == "glm":
+                return self._run_glm(image_path, prompt)
+
             logger.debug(
                 "vl_analysis_tool sync call: image_path=%s prompt=%r",
                 image_path,
@@ -115,6 +209,9 @@ class VLAnalysisTool(BaseTool):
             return f"错误：图像文件不存在于路径 {image_path}。请提供有效的图像路径。"
 
         try:
+            if self.vision_provider == "glm":
+                return await self._arun_glm(image_path, prompt)
+
             logger.debug(
                 "vl_analysis_tool async call: image_path=%s prompt=%r",
                 image_path,

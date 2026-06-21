@@ -399,6 +399,27 @@
                     <span class="mr-3">📚</span> 技能库 (Skills)
                 </button>
             </nav>
+            <div class="px-4 pb-4 border-t border-white/5 pt-4 space-y-3">
+                <div class="flex items-center justify-between">
+                    <div class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">历史会话</div>
+                    <button @click="startNewChat" class="text-xs text-indigo-300 hover:text-indigo-200">新建</button>
+                </div>
+                <div v-if="isLoadingChatSessions" class="text-xs text-slate-500">加载历史中...</div>
+                <div v-else-if="chatSessionsError" class="text-xs text-red-300">{{ chatSessionsError }}</div>
+                <div v-else-if="chatSessions.length === 0" class="text-xs text-slate-600">暂无历史</div>
+                <div v-else class="space-y-2 max-h-72 overflow-y-auto soft-scrollbar pr-1">
+                    <button v-for="session in chatSessions" :key="session.thread_id" @click="loadChatSession(session.thread_id)" :class="session.thread_id === threadId ? 'border-indigo-400/50 bg-indigo-500/10' : 'border-white/5 bg-white/[0.03] hover:bg-white/[0.06]'" class="w-full rounded-2xl border p-3 text-left transition">
+                        <div class="flex items-start justify-between gap-2">
+                            <div class="min-w-0">
+                                <div class="truncate text-sm text-slate-200">{{ session.title || '新对话' }}</div>
+                                <div class="mt-1 truncate text-xs text-slate-500">{{ session.last_message || session.thread_id }}</div>
+                            </div>
+                            <button @click.stop="deleteChatSession(session.thread_id)" class="shrink-0 text-xs text-slate-600 hover:text-red-300">删除</button>
+                        </div>
+                        <div class="mt-2 text-[11px] text-slate-600">{{ formatTime(session.updated_at) }} · {{ session.message_count }} 条</div>
+                    </button>
+                </div>
+            </div>
             <div class="p-4 text-xs text-slate-500 border-t border-white/5">
                 Session: {{ threadId }}
             </div>
@@ -424,6 +445,10 @@
                             </div>
                             <h1 class="text-3xl md:text-5xl font-semibold tracking-[-0.04em] text-white">Daiboo 代步控制台</h1>
                             <p class="mt-3 max-w-2xl text-slate-400 leading-7">在一个页面内完成浏览器自动化对话、RAG 检索调试和工具能力检查。默认同源 API，适配本地和远程部署。</p>
+                            <div class="mt-4 flex flex-wrap gap-2 text-sm">
+                                <button @click="startNewChat" class="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-slate-200 hover:bg-white/10 transition">新建对话</button>
+                                <button @click="fetchChatSessions" class="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-slate-200 hover:bg-white/10 transition">刷新历史</button>
+                            </div>
                         </div>
                         <div class="grid grid-cols-3 gap-2 md:gap-3 text-center text-xs text-slate-400">
                             <div class="rounded-2xl border border-white/10 bg-black/20 px-4 py-3"><div class="text-lg text-white font-semibold">Chat</div><div>流式对话</div></div>
@@ -799,6 +824,9 @@
                 const currentTab = ref('chat');
                 const userInput = ref('');
                 const chatHistory = ref([]);
+                const chatSessions = ref([]);
+                const isLoadingChatSessions = ref(false);
+                const chatSessionsError = ref('');
                 const isThinking = ref(false);
                 const tools = ref([]);
                 const isLoadingTools = ref(false);
@@ -861,6 +889,76 @@
                     const file = event.target.files[0];
                     if (file) {
                         selectedFileName.value = file.name;
+                    }
+                };
+
+                const makeThreadId = () => "session_" + Date.now();
+
+                const formatTime = (value) => {
+                    if (!value) return '';
+                    const date = new Date(value);
+                    if (Number.isNaN(date.getTime())) return value;
+                    return date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+                };
+
+                const fetchChatSessions = async () => {
+                    isLoadingChatSessions.value = true;
+                    chatSessionsError.value = '';
+                    try {
+                        const res = await fetch(`${API_BASE}/chat/sessions`);
+                        if (!res.ok) {
+                            const err = await res.json().catch(() => ({}));
+                            throw new Error(err.detail || '聊天历史接口调用失败');
+                        }
+                        chatSessions.value = await res.json();
+                    } catch (e) {
+                        chatSessionsError.value = e.message || '聊天历史加载失败';
+                        chatSessions.value = [];
+                    } finally {
+                        isLoadingChatSessions.value = false;
+                    }
+                };
+
+                const startNewChat = () => {
+                    if (isThinking.value) return;
+                    threadId.value = makeThreadId();
+                    chatHistory.value = [];
+                    userInput.value = '';
+                    currentTab.value = 'chat';
+                };
+
+                const loadChatSession = async (sessionId) => {
+                    if (isThinking.value || !sessionId) return;
+                    chatSessionsError.value = '';
+                    try {
+                        const res = await fetch(`${API_BASE}/chat/sessions/${encodeURIComponent(sessionId)}`);
+                        if (!res.ok) {
+                            const err = await res.json().catch(() => ({}));
+                            throw new Error(err.detail || '聊天会话加载失败');
+                        }
+                        const data = await res.json();
+                        threadId.value = data.thread_id;
+                        chatHistory.value = (data.messages || []).map(msg => ({ role: msg.role, content: msg.content }));
+                        currentTab.value = 'chat';
+                    } catch (e) {
+                        chatSessionsError.value = e.message || '聊天会话加载失败';
+                    }
+                };
+
+                const deleteChatSession = async (sessionId) => {
+                    if (isThinking.value || !sessionId) return;
+                    try {
+                        const res = await fetch(`${API_BASE}/chat/sessions/${encodeURIComponent(sessionId)}`, { method: 'DELETE' });
+                        if (!res.ok) {
+                            const err = await res.json().catch(() => ({}));
+                            throw new Error(err.detail || '删除会话失败');
+                        }
+                        if (threadId.value === sessionId) {
+                            startNewChat();
+                        }
+                        await fetchChatSessions();
+                    } catch (e) {
+                        chatSessionsError.value = e.message || '删除会话失败';
                     }
                 };
 
@@ -936,6 +1034,7 @@
                         chatHistory.value.push({ role: 'agent', content: "**Network Error**: " + e.message });
                     } finally {
                         isThinking.value = false;
+                        await fetchChatSessions();
                     }
                 };
 
@@ -1095,11 +1194,20 @@
                 };
 
                 fetchRagSummary();
+                fetchChatSessions();
 
                 return {
                     currentTab,
                     userInput,
                     chatHistory,
+                    chatSessions,
+                    isLoadingChatSessions,
+                    chatSessionsError,
+                    fetchChatSessions,
+                    loadChatSession,
+                    deleteChatSession,
+                    startNewChat,
+                    formatTime,
                     isThinking,
                     tools,
                     isLoadingTools,

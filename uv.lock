@@ -747,6 +747,104 @@ wheels = [
 ]
 
 [[package]]
+name = "daiboo"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "aiosqlite" },
+    { name = "dashscope" },
+    { name = "docx2txt" },
+    { name = "fastapi" },
+    { name = "hcaptcha-challenger" },
+    { name = "jieba" },
+    { name = "langchain" },
+    { name = "langchain-community" },
+    { name = "langchain-core" },
+    { name = "langchain-mcp-adapters" },
+    { name = "langchain-openai" },
+    { name = "langchain-text-splitters" },
+    { name = "langgraph" },
+    { name = "langgraph-checkpoint-sqlite" },
+    { name = "langsmith" },
+    { name = "loguru" },
+    { name = "pgvector" },
+    { name = "pillow" },
+    { name = "playwright" },
+    { name = "psycopg" },
+    { name = "psycopg-binary" },
+    { name = "pydantic" },
+    { name = "pypdf" },
+    { name = "python-dotenv" },
+    { name = "python-multipart" },
+    { name = "sentence-transformers" },
+    { name = "socksio" },
+    { name = "sqlalchemy" },
+    { name = "torch" },
+    { name = "unstructured" },
+    { name = "uvicorn" },
+]
+
+[package.optional-dependencies]
+dev = [
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "vcrpy" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "vcrpy" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "aiosqlite", specifier = ">=0.22" },
+    { name = "dashscope", specifier = ">=1.25" },
+    { name = "docx2txt", specifier = ">=0.9" },
+    { name = "fastapi", specifier = ">=0.125" },
+    { name = "hcaptcha-challenger", specifier = ">=0.18.13" },
+    { name = "jieba", specifier = ">=0.42" },
+    { name = "langchain", specifier = ">=1.2" },
+    { name = "langchain-community", specifier = ">=0.4" },
+    { name = "langchain-core", specifier = ">=1.2" },
+    { name = "langchain-mcp-adapters", specifier = ">=0.1" },
+    { name = "langchain-openai", specifier = ">=0.3" },
+    { name = "langchain-text-splitters", specifier = ">=1.0" },
+    { name = "langgraph", specifier = ">=1.0" },
+    { name = "langgraph-checkpoint-sqlite", specifier = ">=2.0" },
+    { name = "langsmith", specifier = ">=0.4" },
+    { name = "loguru", specifier = ">=0.7" },
+    { name = "pgvector", specifier = ">=0.3" },
+    { name = "pillow", specifier = ">=11" },
+    { name = "playwright", specifier = ">=1.55" },
+    { name = "psycopg", specifier = ">=3.3" },
+    { name = "psycopg-binary", specifier = ">=3.3" },
+    { name = "pydantic", specifier = ">=2.11" },
+    { name = "pypdf", specifier = ">=6.4" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=9" },
+    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=1.3" },
+    { name = "python-dotenv", specifier = ">=1.1" },
+    { name = "python-multipart", specifier = ">=0.0.20" },
+    { name = "sentence-transformers", specifier = ">=5.1" },
+    { name = "socksio", specifier = ">=1.0" },
+    { name = "sqlalchemy", specifier = ">=2.0" },
+    { name = "torch", specifier = ">=2.5" },
+    { name = "unstructured", specifier = ">=0.18" },
+    { name = "uvicorn", specifier = ">=0.38" },
+    { name = "vcrpy", marker = "extra == 'dev'", specifier = ">=8.0" },
+]
+provides-extras = ["dev"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest", specifier = ">=9" },
+    { name = "pytest-asyncio", specifier = ">=1.3" },
+    { name = "vcrpy", specifier = ">=8.0" },
+]
+
+[[package]]
 name = "dashscope"
 version = "1.25.21"
 source = { registry = "https://pypi.org/simple" }
@@ -2368,102 +2466,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/9c/1c/c80cb7719721a44846c6301ef118434bae30a423924bfad3a47f16bdc064/narwhals-2.22.0.tar.gz", hash = "sha256:6486282bb7e4b4ab55963efbd8be1451b764cc4874b74d1fd625eba9dc60b86f", size = 417565, upload-time = "2026-06-01T13:34:36.249Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/1f/b6/e7cdde7b8e90d5dff25b622f95833ef26567ad184c977278b93a1cbd5717/narwhals-2.22.0-py3-none-any.whl", hash = "sha256:1421797ede01789cc1537619dbc3f36f840737240f748fdb24a60a0225fc80be", size = 453815, upload-time = "2026-06-01T13:34:34.127Z" },
-]
-
-[[package]]
-name = "daiboo"
-version = "0.1.0"
-source = { editable = "." }
-dependencies = [
-    { name = "dashscope" },
-    { name = "docx2txt" },
-    { name = "fastapi" },
-    { name = "hcaptcha-challenger" },
-    { name = "jieba" },
-    { name = "langchain" },
-    { name = "langchain-community" },
-    { name = "langchain-core" },
-    { name = "langchain-mcp-adapters" },
-    { name = "langchain-openai" },
-    { name = "langchain-text-splitters" },
-    { name = "langgraph" },
-    { name = "langgraph-checkpoint-sqlite" },
-    { name = "langsmith" },
-    { name = "loguru" },
-    { name = "pgvector" },
-    { name = "pillow" },
-    { name = "playwright" },
-    { name = "psycopg" },
-    { name = "psycopg-binary" },
-    { name = "pydantic" },
-    { name = "pypdf" },
-    { name = "python-dotenv" },
-    { name = "python-multipart" },
-    { name = "sentence-transformers" },
-    { name = "socksio" },
-    { name = "sqlalchemy" },
-    { name = "torch" },
-    { name = "unstructured" },
-    { name = "uvicorn" },
-]
-
-[package.optional-dependencies]
-dev = [
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "vcrpy" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "vcrpy" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "dashscope", specifier = ">=1.25" },
-    { name = "docx2txt", specifier = ">=0.9" },
-    { name = "fastapi", specifier = ">=0.125" },
-    { name = "hcaptcha-challenger", specifier = ">=0.18.13" },
-    { name = "jieba", specifier = ">=0.42" },
-    { name = "langchain", specifier = ">=1.2" },
-    { name = "langchain-community", specifier = ">=0.4" },
-    { name = "langchain-core", specifier = ">=1.2" },
-    { name = "langchain-mcp-adapters", specifier = ">=0.1" },
-    { name = "langchain-openai", specifier = ">=0.3" },
-    { name = "langchain-text-splitters", specifier = ">=1.0" },
-    { name = "langgraph", specifier = ">=1.0" },
-    { name = "langgraph-checkpoint-sqlite", specifier = ">=2.0" },
-    { name = "langsmith", specifier = ">=0.4" },
-    { name = "loguru", specifier = ">=0.7" },
-    { name = "pgvector", specifier = ">=0.3" },
-    { name = "pillow", specifier = ">=11" },
-    { name = "playwright", specifier = ">=1.55" },
-    { name = "psycopg", specifier = ">=3.3" },
-    { name = "psycopg-binary", specifier = ">=3.3" },
-    { name = "pydantic", specifier = ">=2.11" },
-    { name = "pypdf", specifier = ">=6.4" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=9" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=1.3" },
-    { name = "python-dotenv", specifier = ">=1.1" },
-    { name = "python-multipart", specifier = ">=0.0.20" },
-    { name = "sentence-transformers", specifier = ">=5.1" },
-    { name = "socksio", specifier = ">=1.0" },
-    { name = "sqlalchemy", specifier = ">=2.0" },
-    { name = "torch", specifier = ">=2.5" },
-    { name = "unstructured", specifier = ">=0.18" },
-    { name = "uvicorn", specifier = ">=0.38" },
-    { name = "vcrpy", marker = "extra == 'dev'", specifier = ">=8.0" },
-]
-provides-extras = ["dev"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "pytest", specifier = ">=9" },
-    { name = "pytest-asyncio", specifier = ">=1.3" },
-    { name = "vcrpy", specifier = ">=8.0" },
 ]
 
 [[package]]

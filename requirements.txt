@@ -1,3 +1,4 @@
+aiosqlite>=0.22
 dashscope==1.25.13
 fastapi==0.125.0
 jieba==0.42.1

@@ -10,6 +10,7 @@ authors = [
 ]
 keywords = ["browser-automation", "ai-agent", "playwright", "llm", "langgraph", "mcp"]
 dependencies = [
+    "aiosqlite>=0.22",
     "dashscope>=1.25",
     "fastapi>=0.125",
     "hcaptcha-challenger>=0.18.13",

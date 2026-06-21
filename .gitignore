@@ -34,3 +34,6 @@ docx/
 .playwright-mcp/*
 tmp/*data/
 tmp/
+
+# Local public auth credentials
+.public-auth
