@@ -6,12 +6,12 @@
 
 - 需要真实浏览器、真实账号、数据库、副作用或人工观察的脚本放这里。
 - 目录已被 `pytest.ini` 的 `norecursedirs` 排除，执行 `pytest` 时不会自动跑。
-- 运行仓库脚本前先切到 `conda activate langchainenv`。
+- 运行仓库脚本使用 `uv run python ...`，环境以仓库 `uv.lock` 为准。
 
 示例：
 
-```powershell
-conda run -n langchainenv python test/manual/epic_login_manual.py
+```bash
+uv run python test/manual/epic_login_manual.py
 ```
 
 ## 脚本清单
@@ -22,18 +22,17 @@ conda run -n langchainenv python test/manual/epic_login_manual.py
   最后正确声明边界」能力。脚本内置四档 prompt（v1 最少引导 / v2 两阶段提示 /
   v3 详细策略 / v4 调用 solve_hcaptcha 工具），避免模型乱用虚构工具名或误走 terminal 工具。
 
-  ```powershell
-  conda run -n langchainenv python test/manual/hcaptcha_demo_manual.py --prompt v3 --recursion 120
-  conda run -n langchainenv python test/manual/hcaptcha_demo_manual.py --prompt v1 --show-prompt-only
+  ```bash
+  uv run python test/manual/hcaptcha_demo_manual.py --prompt v3 --recursion 120
+  uv run python test/manual/hcaptcha_demo_manual.py --prompt v1 --show-prompt-only
   ```
 
 ## 依赖与环境变量
 
 `hcaptcha_demo_manual.py --prompt v4` 依赖 `solve_hcaptcha` 工具，需要先安装：
 
-```powershell
-conda activate langchainenv
-pip install hcaptcha-challenger loguru
+```bash
+uv sync --locked --group dev
 ```
 
 > `loguru` 是 `extensions/llm_adapter.py` 的运行时依赖；`google.genai` 会随

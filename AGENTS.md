@@ -18,9 +18,9 @@
 
 ## 3. 运行环境前置
 
-- 在本仓库执行 Python、pytest、uvicorn、脚本前，先激活 conda 环境：`conda activate langchainenv`。
-- 若当前终端不在 conda shell，先执行 conda 初始化后的 PowerShell 会话，再激活 `langchainenv`。
-- 不要默认使用系统 Python 或 `base` 环境，除非用户明确要求。
+- 本仓库以 `uv.lock` 为可复现环境来源；安装/同步使用 `uv sync --locked --group dev`。
+- 执行 Python、pytest、uvicorn 或脚本时优先使用 `uv run ...`，测试使用 `uv run python -m pytest`，避免依赖损坏的 console-script shebang。
+- `requirements.txt` 只用于传统 pip 兼容安装；CI 和仓库验证必须使用 uv 锁文件。
 
 ## 4. 核心代码边界
 
@@ -35,7 +35,7 @@
 - `skills/`: Skills 技能目录。每个子目录包含一个 `SKILL.md`（YAML frontmatter + Markdown body）。加载逻辑在 `utils/skills.py`，Agent 工具在 `tools/skill_tools.py`。
 - `utils/skills.py`: Skills 加载模块（扫描、YAML 解析、缓存、便捷格式化）。
 - `tools/skill_tools.py`: Skills Agent 工具（`list_skills`、`view_skill`）。
-- `frontend/index.html`: 单文件 Vue.js SPA，含 Chat / RAG / Tools / Skills 四个标签页。
+- `frontend/index.html`: Vue.js SPA，含 Chat / RAG / Tools / Skills 四个标签页；`frontend/app_utils.js` 提供可独立行为测试的 NDJSON 解析 helper。
 
 仅在边界明确时修改，跨模块改动需检查调用链是否一致。
 
@@ -62,7 +62,7 @@
 - 历史调研/过程文档不等于运行时代码；不要把未跟踪的设计文档当作已实现能力。
 - `loggers/screen_logger.py` 仅保留文字日志，不再持有 ScreenshotHelper / CDP 连接。
 - `ToolNode` 已全局修补 `_handle_tool_errors = True`，MCP 工具异常不会导致 Agent 直接崩溃。
-- `README.md` 当前约定的 conda 环境名是 `langchainenv`。
+- `README.md` 当前约定 uv 为首选环境，传统 pip/conda 仅作兼容路径。
 
 ## 7.1 当前仓库已知事实（2026-05-03 更新）
 
@@ -108,12 +108,20 @@
 
 - 新增 `utils/auth.py`：`AuthMiddleware`（BaseHTTPMiddleware），统一认证 + 限流。
 - **认证**：通过 `DAIBOO_API_KEY` 环境变量启用。设置后，所有请求须携带 `X-API-Key` header 匹配该值；不设则认证关闭（向后兼容）。
-- **免鉴权路径**：`/health`、`/`、`/vendor/*` 始终跳过认证。
+- **免鉴权路径**：`/health`、`/`、`/app_utils.js`、`/vendor/*` 始终跳过认证。
 - **限流**：滑动窗口算法，进程内内存计数（重启重置）。通过 `RATE_LIMIT`（默认 60）和 `RATE_LIMIT_WINDOW`（默认 60s）控制；`RATE_LIMIT=0` 关闭限流。
 - 中间件顺序：CORS → Auth → HTTP Logging。
 - 测试参见 `test/test_auth.py`（12 个测试）。
 
-## 8. 执行偏好
+## 8. 项目安全 / 本地运行边界
+
+- Daiboo 默认保持本地-only；不要未经用户明确要求把服务暴露到公网。
+- 运行时/敏感文件不得提交：`.public-auth`、`.env`、`data/`、checkpoint DB、聊天历史、cookie/session、临时上传、浏览器 profile、运行日志。
+- 提交或推送前必须做一次 runtime/secret artifact 检查：`git status --short`、变更文件列表、敏感文件名 grep、diff 中高信号 secret grep。
+- 如果需要演示或内网访问，优先 Tailnet / localhost 转发；公网入口必须先验证认证和最小暴露面。
+- 文档中只记录 secret 文件位置或环境变量名，不记录 secret 值。
+
+## 9. 执行偏好
 
 - 小步修改，优先最小可验证变更。
 - 每次修改后至少做一次本地一致性检查（路径、导入、文档引用）。
