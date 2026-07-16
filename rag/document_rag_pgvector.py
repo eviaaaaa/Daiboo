@@ -95,6 +95,8 @@ def _build_rag_document(
     parent_id: int | None = None,
 ) -> RagDocument:
     metadata = dict(doc.metadata or {})
+    for path_key in ("source", "source_path", "file_path"):
+        metadata.pop(path_key, None)
     start_index = metadata.get("start_index")
     return RagDocument(
         content=doc.page_content,
@@ -119,13 +121,14 @@ def _sanitize_return_docs(results: list[RagDocument]) -> list[RagDocument]:
 
 def _serialize_rag_document(doc: RagDocument) -> dict[str, Any]:
     metadata = dict(doc.meta_data or {})
+    for path_key in ("source", "source_path", "file_path"):
+        metadata.pop(path_key, None)
     chunk_level = doc.chunk_level or "legacy"
     source_name = doc.source_name or "未命名/旧数据"
     return {
         "id": doc.id,
         "content": doc.content,
         "source_name": source_name,
-        "source_path": doc.source_path,
         "chunk_level": chunk_level,
         "chunk_index": doc.chunk_index,
         "parent_id": doc.parent_id,
@@ -135,7 +138,12 @@ def _serialize_rag_document(doc: RagDocument) -> dict[str, Any]:
         "content_length": len(doc.content or ""),
     }
 
-def save_document_to_pgvector(doc_paths: Union[Path, List[Path]]) -> dict[str, Any]:
+def save_document_to_pgvector(
+    doc_paths: Union[Path, List[Path]],
+    *,
+    source_names: dict[Path, str] | None = None,
+    include_source_paths: bool = True,
+) -> dict[str, Any]:
     """
     将一个或多个文档加载、切分，并存入 pgvector 向量库。
     支持 .txt, .md, .pdf, .docx, .doc 等格式。
@@ -168,10 +176,12 @@ def save_document_to_pgvector(doc_paths: Union[Path, List[Path]]) -> dict[str, A
             loader = get_loader_for_file(doc_path)
             docs = loader.load()
             structured_chunks = build_parent_child_chunks(docs)
+            if not structured_chunks:
+                continue
             all_structured_chunks.append(
                 {
-                    "source_path": str(doc_path),
-                    "source_name": doc_path.name,
+                    "source_path": str(doc_path) if include_source_paths else None,
+                    "source_name": (source_names or {}).get(doc_path, doc_path.name),
                     "chunks": structured_chunks,
                 }
             )
@@ -261,7 +271,6 @@ def save_document_to_pgvector(doc_paths: Union[Path, List[Path]]) -> dict[str, A
     file_summaries = [
         {
             "source_name": item["source_name"],
-            "source_path": item["source_path"],
             "parent_chunks": len(item["chunks"]),
             "child_chunks": sum(len(chunk["children"]) for chunk in item["chunks"]),
         }
@@ -459,8 +468,7 @@ def get_rag_corpus_summary() -> dict[str, Any]:
                     COALESCE(source_name, '未命名/旧数据') AS source_name,
                     count(*) FILTER (WHERE chunk_level = 'parent') AS parent_chunks,
                     count(*) FILTER (WHERE chunk_level = 'child') AS child_chunks,
-                    count(*) AS total_rows,
-                    max(source_path) AS source_path
+                    count(*) AS total_rows
                 FROM rag_documents
                 GROUP BY COALESCE(source_name, '未命名/旧数据')
                 ORDER BY source_name
@@ -475,7 +483,6 @@ def get_rag_corpus_summary() -> dict[str, Any]:
         "sources": [
             {
                 "source_name": row["source_name"],
-                "source_path": row["source_path"],
                 "parent_chunks": int(row["parent_chunks"] or 0),
                 "child_chunks": int(row["child_chunks"] or 0),
                 "total_rows": int(row["total_rows"] or 0),

@@ -4,6 +4,9 @@ from pathlib import Path, PurePath, PureWindowsPath
 from uuid import uuid4
 
 
+ALLOWED_UPLOAD_EXTENSIONS = frozenset({".pdf", ".doc", ".docx", ".md", ".txt"})
+
+
 def _client_basename(client_filename: str) -> str:
     """Return a filename-only display name for POSIX or Windows client paths.
 

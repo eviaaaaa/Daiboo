@@ -11,9 +11,7 @@ from langgraph.types import Command
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from typing import TYPE_CHECKING, Any, AsyncIterator, Optional
 import json
-import shutil
 import os
-from pathlib import Path
 import asyncio
 import sys
 import pprint
@@ -40,7 +38,7 @@ if sys.platform == 'win32':
 from utils.my_browser import ensure_browser_running
 from utils.mcp_client import create_persistent_mcp_session
 from utils.agent_factory import create_browser_agent, get_agent_tools
-from utils.upload_paths import build_safe_upload_path
+from utils.upload_paths import ALLOWED_UPLOAD_EXTENSIONS, build_safe_upload_path
 from utils.config import upload_dir
 from utils.skills import get_skill_by_name, load_skills
 from rag.document_rag_pgvector import (
@@ -106,10 +104,18 @@ app = FastAPI(
     version="1.0.0",
 )
 
+
+def _cors_origins() -> list[str]:
+    """同源默认不需要 CORS；仅接受显式配置的来源白名单。"""
+    raw = os.getenv("CORS_ALLOW_ORIGINS", "")
+    return [origin.strip() for origin in raw.split(",") if origin.strip()]
+
+
+_configured_cors_origins = _cors_origins()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=_configured_cors_origins,
+    allow_credentials=bool(_configured_cors_origins),
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -207,7 +213,6 @@ class RagChunkResult(BaseModel):
     id: Optional[int] = None
     content: str
     source_name: Optional[str] = None
-    source_path: Optional[str] = None
     chunk_level: Optional[str] = None
     chunk_index: Optional[int] = None
     parent_id: Optional[int] = None
@@ -239,7 +244,6 @@ class RagSearchResponse(BaseModel):
 
 class RagCorpusSource(BaseModel):
     source_name: str
-    source_path: Optional[str] = None
     parent_chunks: int
     child_chunks: int
     total_rows: int
@@ -408,9 +412,12 @@ async def chat(request: ChatRequest) -> StreamingResponse:
             if agent_messages:
                 append_chat_message(request.thread_id, "agent", "\n\n".join(agent_messages))
 
-        except Exception as e:
+        except Exception:
             logger.exception("Chat streaming error for thread {}", request.thread_id)
-            data = json.dumps({"type": "error", "content": str(e)}, ensure_ascii=False)
+            data = json.dumps(
+                {"type": "error", "content": "Agent execution failed. Check server logs."},
+                ensure_ascii=False,
+            )
             yield f"{data}\n"
 
     return StreamingResponse(event_generator(), media_type="application/x-ndjson")
@@ -534,10 +541,13 @@ async def view_skill_endpoint(name: str) -> dict[str, Any]:
 @app.post(
     "/upload",
     summary="上传文档并建立索引",
-    description="上传单个文件到临时目录，并调用 PGVector 文档索引流程完成入库。",
+    description="校验类型和大小后分块保存上传文件，调用 PGVector 索引，并在成功或失败后清理临时文件。",
     response_model=UploadResponse,
     responses={
-        400: {"model": ErrorResponse, "description": "上传文件缺少文件名。"},
+        400: {"model": ErrorResponse, "description": "上传文件缺少有效文件名。"},
+        413: {"model": ErrorResponse, "description": "文件超过 UPLOAD_MAX_MB 限制。"},
+        415: {"model": ErrorResponse, "description": "文件扩展名不在允许列表。"},
+        422: {"model": ErrorResponse, "description": "文档无法生成可索引内容。"},
         500: {"model": ErrorResponse, "description": "文件保存或索引过程中发生异常。"},
     },
     tags=["documents"],
@@ -549,14 +559,43 @@ async def upload_document(
 
     temp_dir: Path = upload_dir()
     temp_dir.mkdir(parents=True, exist_ok=True)
+    file_path: Path | None = None
 
     try:
         display_name, file_path = build_safe_upload_path(temp_dir, file.filename or "")
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+        if file_path.suffix not in ALLOWED_UPLOAD_EXTENSIONS:
+            allowed = ", ".join(sorted(ALLOWED_UPLOAD_EXTENSIONS))
+            raise HTTPException(status_code=415, detail=f"Unsupported file type. Allowed: {allowed}")
 
-        # 调用 RAG 保存函数
-        indexing_summary = await asyncio.to_thread(save_document_to_pgvector, [file_path])
+        try:
+            max_mb = float(os.getenv("UPLOAD_MAX_MB", "20"))
+        except (TypeError, ValueError):
+            max_mb = 20.0
+        if max_mb <= 0:
+            max_mb = 20.0
+        max_bytes = int(max_mb * 1024 * 1024)
+        bytes_written = 0
+        with open(file_path, "wb") as buffer:
+            while chunk := await file.read(1024 * 1024):
+                bytes_written += len(chunk)
+                if bytes_written > max_bytes:
+                    raise HTTPException(
+                        status_code=413,
+                        detail=f"File exceeds UPLOAD_MAX_MB limit ({max_mb:g} MB)",
+                    )
+                buffer.write(chunk)
+
+        indexing_summary = await asyncio.to_thread(
+            save_document_to_pgvector,
+            [file_path],
+            source_names={file_path: display_name},
+            include_source_paths=False,
+        )
+        if indexing_summary["total_parents"] == 0:
+            raise HTTPException(
+                status_code=422,
+                detail="Document could not be parsed into indexable content",
+            )
 
         return {
             "status": "success",
@@ -565,11 +604,18 @@ async def upload_document(
             "total_parents": indexing_summary["total_parents"],
             "total_children": indexing_summary["total_children"],
         }
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
-    except Exception as e:
+    except HTTPException:
+        raise
+    except ValueError:
+        logger.warning("Rejected invalid upload filename")
+        raise HTTPException(status_code=400, detail="Invalid upload filename.")
+    except Exception:
         logger.exception("Document upload/indexing failed for {}", file.filename or "unknown")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Document indexing failed")
+    finally:
+        await file.close()
+        if file_path is not None:
+            file_path.unlink(missing_ok=True)
 
 
 @app.post(
@@ -589,9 +635,9 @@ async def debug_rag_search(request: RagSearchRequest) -> dict[str, Any]:
             request.top_k,
             request.use_rerank,
         )
-    except Exception as exc:
+    except Exception:
         logger.exception("RAG search failed for query: {}", request.query[:100])
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="RAG search failed")
 
 
 @app.get(
@@ -604,9 +650,9 @@ async def debug_rag_search(request: RagSearchRequest) -> dict[str, Any]:
 async def rag_corpus_summary() -> dict[str, Any]:
     try:
         return await asyncio.to_thread(get_rag_corpus_summary)
-    except Exception as exc:
+    except Exception:
         logger.exception("RAG corpus summary failed")
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="RAG summary unavailable")
 
 if __name__ == "__main__":
     uvicorn.run(app, host=app_host(), port=app_port())

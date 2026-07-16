@@ -37,9 +37,6 @@ if TYPE_CHECKING:
     from langgraph.graph.state import CompiledStateGraph
     from langgraph.checkpoint.base import BaseCheckpointSaver
 
-# 单例缓存
-_agent_cache: dict[str, "CompiledStateGraph"] = {}
-
 def get_agent_tools(mcp_tools: Any, screenshot_helper: Any = None) -> list[Any]:
     """获取工具列表
 
@@ -69,7 +66,7 @@ async def create_browser_agent(
     checkpointer: Any = None,
 ) -> "CompiledStateGraph":
     """
-    创建并配置浏览器自动化 Agent（单例模式）
+    创建并配置绑定当前 MCP session 与 checkpointer 的浏览器自动化 Agent
 
     参数：
         mcp_tools: MCP 浏览器工具列表
@@ -79,13 +76,6 @@ async def create_browser_agent(
         checkpointer: 可选的外部 checkpointer（如 SqliteSaver）。
                       未提供时使用 InMemorySaver（重启后会话丢失）。
     """
-    # 创建缓存键，基于模型参数
-    cache_key = f"{model_name}_{enable_thinking}"
-
-    # 如果已缓存，直接返回（复用已编译的 Agent）
-    if cache_key in _agent_cache:
-        return _agent_cache[cache_key]
-
     # 初始化工具集
     tools = get_agent_tools(mcp_tools, screenshot_helper)
 
@@ -148,8 +138,5 @@ async def create_browser_agent(
         bound = getattr(node, 'bound', None)
         if isinstance(bound, ToolNode):
             bound._handle_tool_errors = True
-
-    # 缓存已编译的 Agent
-    _agent_cache[cache_key] = browser_agent
 
     return browser_agent
