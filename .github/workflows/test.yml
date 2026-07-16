@@ -5,14 +5,15 @@ on:
     branches: [main, master]
   pull_request:
     branches: [main, master]
+  workflow_dispatch:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  UV_PYTHON: "3.11"
 
 jobs:
-  test:
+  unit:
     runs-on: ubuntu-latest
-
     services:
       postgres:
         image: pgvector/pgvector:pg16
@@ -27,81 +28,79 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-
+    env:
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_NAME: daiboo_test
+      DB_USER: daiboo
+      DB_PASSWORD: daiboo_test
+      HOST: 127.0.0.1
+      PORT: 8801
+      DEBUGGING_PORT: 9222
+      USER_DATA_DIR: /tmp/daiboo-test-profile
+      DAIBOO_LOCAL_EMBEDDINGS: 1
     steps:
       - uses: actions/checkout@v4
-
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
       - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libpq-dev
-
-      - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cu121
-
-      - name: Install Playwright browsers
-        run: |
-          playwright install chromium
-
-      - name: Install Playwright MCP
-        run: |
-          npm install -g @playwright/mcp
-
-      - name: Create test .env
-        run: |
-          cat > .env << 'DOTENV'
-          DB_HOST=localhost
-          DB_PORT=5432
-          DB_NAME=daiboo_test
-          DB_USER=daiboo
-          DB_PASSWORD=daiboo_test
-          HOST=127.0.0.1
-          PORT=8801
-          DEBUGGING_PORT=9222
-          BROWSER_PATH=
-          USER_DATA_DIR=/tmp/daiboo-test-profile
-          DAIBOO_LOCAL_EMBEDDINGS=1
-          DOTENV
-
+        run: uv python install 3.11
+      - name: Sync locked dependencies
+        run: uv sync --locked --group dev
       - name: Enable pgvector extension
-        run: |
-          PGPASSWORD=daiboo_test psql -h localhost -U daiboo -d daiboo_test -c 'CREATE EXTENSION IF NOT EXISTS vector;'
-
+        run: PGPASSWORD=daiboo_test psql -h localhost -U daiboo -d daiboo_test -c 'CREATE EXTENSION IF NOT EXISTS vector;'
       - name: Initialize database schema
         run: |
-          python -c "
+          uv run python - <<'PY'
           from entity import Base
           from entity.rag_document import RagDocument
           from database import engine
-          # Create all entity tables (agent_traces, experiences, my_state, etc.)
-          Base.metadata.create_all(engine)
-          # Create rag_documents table
-          RagDocument.metadata.create_all(engine)
-          # Create required indexes for rag_documents
           from sqlalchemy import text
-          with engine.begin() as conn:
-              conn.execute(text(
-                  'CREATE INDEX IF NOT EXISTS ix_rag_documents_parent_id '
-                  'ON rag_documents(parent_id)'
-              ))
-              conn.execute(text(
-                  'CREATE INDEX IF NOT EXISTS ix_rag_documents_chunk_level '
-                  'ON rag_documents(chunk_level)'
-              ))
-          print('Schema initialized')
-          "
 
-      - name: Run tests
-        run: python -m pytest -q --tb=short
+          Base.metadata.create_all(engine)
+          RagDocument.metadata.create_all(engine)
+          with engine.begin() as conn:
+              conn.execute(text('CREATE INDEX IF NOT EXISTS ix_rag_documents_parent_id ON rag_documents(parent_id)'))
+              conn.execute(text('CREATE INDEX IF NOT EXISTS ix_rag_documents_chunk_level ON rag_documents(chunk_level)'))
+          print('Schema initialized')
+          PY
+      - name: Run unit tests
+        run: uv run python -m pytest -q --tb=short
+
+  browser-integration:
+    runs-on: ubuntu-latest
+    env:
+      DEBUGGING_PORT: 9222
+      USER_DATA_DIR: /tmp/daiboo-browser-integration-profile
+      BROWSER_HEADLESS: "true"
+      RUN_BROWSER_INTEGRATION: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Set up Python and locked dependencies
+        run: |
+          uv python install 3.11
+          uv sync --locked --group dev
+      - name: Install Chromium
+        run: uv run playwright install --with-deps chromium
+      - name: Resolve Chromium executable
+        run: |
+          browser_path="$(uv run python - <<'PY'
+          from playwright.sync_api import sync_playwright
+          with sync_playwright() as playwright:
+              print(playwright.chromium.executable_path)
+          PY
+          )"
+          echo "BROWSER_PATH=$browser_path" >> "$GITHUB_ENV"
+      - name: Verify pinned Playwright MCP
+        run: npx --yes @playwright/mcp@0.0.78 --version
+      - name: Run real browser/MCP integration
+        run: >-
+          uv run python -m pytest -q --tb=short
+          test/test_web_observe.py::test_web_observe_integration_basic
