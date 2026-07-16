@@ -113,6 +113,14 @@
 - 中间件顺序：CORS → Auth → HTTP Logging。
 - 测试参见 `test/test_auth.py`（12 个测试）。
 
+## 7.6 当前仓库已知事实（Redis 缓存与数据库索引）
+
+- `utils/redis_cache.py` 提供可选 Redis JSON 缓存；`REDIS_URL` 未设置或 Redis 故障时必须按 cache miss 安全降级，不能阻断核心请求。
+- 当前仅缓存 Agent 文档检索、RAG 调试检索、RAG 语料概览和查询 Embedding。浏览器操作、流式聊天和上传写入禁止缓存。
+- RAG 写入成功后必须调用 `bump_namespace("rag")`，通过 generation key 一次失效全部 RAG 缓存；不要使用 Redis `KEYS` 或全库 `SCAN` 做请求内失效。
+- `database/indexes.py` 是幂等索引入口；当前只维护与生产 `chunk_level='child'` 查询谓词一致的部分 HNSW 索引。AgentTrace、Experience 和 parent 调试检索在当前数据量下不额外建索引；新增索引前必须先给出 SQL/调用与 `EXPLAIN` 证据。
+- `compose.redis.yml` 仅把 Redis 暴露到 `127.0.0.1:6380`，缓存使用 `allkeys-lru` 且不持久化。
+
 ## 8. 项目安全 / 本地运行边界
 
 - Daiboo 默认保持本地-only；不要未经用户明确要求把服务暴露到公网。
