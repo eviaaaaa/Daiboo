@@ -216,6 +216,39 @@ def test_normalize_evaluate_none_returns_empty():
     assert normalize_evaluate_result(None) == ''
 
 
+def test_normalize_evaluate_playwright_markdown_envelope_json_string():
+    raw = (
+        '### Result\n'
+        '"<div><h1>Example Domain</h1></div>"\n'
+        '### Ran Playwright code\n'
+        '```js\nawait page.evaluate(() => document.body.innerHTML);\n```'
+    )
+
+    assert normalize_evaluate_result(raw) == '<div><h1>Example Domain</h1></div>'
+
+
+def test_normalize_evaluate_text_block_recurses_into_markdown_envelope():
+    raw = [
+        {
+            'type': 'text',
+            'text': (
+                '### Result\n'
+                '"<div><h1>Example Domain</h1></div>"\n'
+                '### Ran Playwright code\n'
+                '```js\nawait page.evaluate(() => document.body.innerHTML);\n```'
+            ),
+        }
+    ]
+
+    assert normalize_evaluate_result(raw) == '<div><h1>Example Domain</h1></div>'
+
+
+def test_normalize_evaluate_playwright_markdown_envelope_json_value():
+    raw = '### Result\r\n["saved", "done"]\r\n### Ran Playwright code\r\n```js\r\n...\r\n```'
+
+    assert normalize_evaluate_result(raw) == 'saved\ndone'
+
+
 # ── 集成测试：需要真浏览器 ─────────────────────────────────────────
 
 

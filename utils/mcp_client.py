@@ -16,6 +16,13 @@ from utils.my_browser import DEBUGGING_PORT
 
 logger = logging.getLogger(__name__)
 
+_DEFAULT_PLAYWRIGHT_MCP_VERSION = "0.0.78"
+
+
+def _playwright_mcp_package() -> str:
+    version = (os.getenv("PLAYWRIGHT_MCP_VERSION") or "").strip()
+    return f"@playwright/mcp@{version or _DEFAULT_PLAYWRIGHT_MCP_VERSION}"
+
 
 def is_mcp_browser_tool(tool_name: str) -> bool:
     """判断工具名是否为 MCP 浏览器工具（名称以 browser_ 开头）"""
@@ -38,7 +45,7 @@ def _mcp_connection(cdp_endpoint: str | None = None):
     return {
         "command": npx_command,
         "args": [
-            "@playwright/mcp@latest",
+            _playwright_mcp_package(),
             "--cdp-endpoint",
             cdp_endpoint,
             "--caps=vision",
