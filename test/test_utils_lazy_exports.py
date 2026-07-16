@@ -20,10 +20,12 @@ def test_qwen_embeddings_export_is_created_after_env_is_available(monkeypatch):
         types.SimpleNamespace(OpenAIEmbeddings=FakeOpenAIEmbeddings),
     )
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_EMBEDDING_MODEL", raising=False)
 
     import utils  # noqa: F401 - package import should not construct embeddings yet
 
     monkeypatch.setenv("OPENAI_API_KEY", "late-key")
+    monkeypatch.setenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small")
     from utils import qwen_embeddings
 
     assert qwen_embeddings._openai_embeddings is not None

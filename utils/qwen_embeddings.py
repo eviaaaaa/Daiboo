@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import hashlib
 import os
+from typing import TypeGuard
 
 from langchain_core.embeddings import Embeddings
 import dashscope
+
+from utils.redis_cache import cache_key, get_json, set_json
 
 try:
     from langchain_openai import OpenAIEmbeddings
@@ -27,6 +30,14 @@ def _truthy_env(name: str) -> bool:
     return (_strip_env(name) or "").lower() in {"1", "true", "yes", "on"}
 
 
+def _positive_int_env(name: str, default: int) -> int:
+    try:
+        value = int(_strip_env(name) or default)
+    except (TypeError, ValueError):
+        return default
+    return value if value > 0 else default
+
+
 def _local_embedding(text: str) -> list[float]:
     normalized = (text or " ").strip() or " "
     values: list[float] = []
@@ -43,12 +54,23 @@ class QwenEmbeddings(Embeddings):
         self.model = model
         self._use_local_embeddings = _truthy_env("DAIBOO_LOCAL_EMBEDDINGS")
         self._openai_embeddings = None
-        api_key = _strip_env("OPENAI_API_KEY")
-        if not self._use_local_embeddings and api_key and OpenAIEmbeddings is not None:
+        self._openai_base_url = _strip_env("OPENAI_EMBEDDING_BASE_URL") or _strip_env("OPENAI_BASE_URL")
+        configured_openai_model = _strip_env("OPENAI_EMBEDDING_MODEL")
+        self._openai_model = configured_openai_model or model
+        api_key = _strip_env("OPENAI_EMBEDDING_API_KEY") or _strip_env("OPENAI_API_KEY")
+        # Chat-compatible gateways such as DeepSeek often do not implement
+        # /embeddings. Require an explicit embedding model before selecting
+        # the OpenAI-compatible embedding client.
+        if (
+            not self._use_local_embeddings
+            and configured_openai_model
+            and api_key
+            and OpenAIEmbeddings is not None
+        ):
             self._openai_embeddings = OpenAIEmbeddings(
                 api_key=api_key,
-                base_url=_strip_env("OPENAI_BASE_URL"),
-                model=_strip_env("OPENAI_EMBEDDING_MODEL") or model,
+                base_url=self._openai_base_url,
+                model=self._openai_model,
             )
         # If neither external provider is configured, default to local embeddings
         # so RAG works offline without DashScope or OpenAI credentials.
@@ -97,11 +119,38 @@ class QwenEmbeddings(Embeddings):
             return self._embed_texts_openai(texts, text_type)
         return self._embed_texts_dashscope(texts, text_type)
 
+    def _cache_identity(self) -> str:
+        if self._use_local_embeddings:
+            return "local-sha256-v1"
+        if self._openai_embeddings is not None:
+            return f"openai:{self._openai_base_url or 'default'}:{self._openai_model}"
+        return f"dashscope:{self.model}"
+
+    @staticmethod
+    def _valid_cached_embedding(value: object) -> TypeGuard[list[int | float]]:
+        return (
+            isinstance(value, list)
+            and len(value) == 1536
+            and all(isinstance(item, (int, float)) for item in value)
+        )
+
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
         return self._embed_texts(texts, text_type="document")
 
     def embed_query(self, text: str) -> list[float]:
-        return self._embed_texts([text], text_type="query")[0]
+        normalized = self._normalize_texts([text])[0]
+        key = cache_key("embedding-query", self._cache_identity(), normalized)
+        cached = get_json(key)
+        if self._valid_cached_embedding(cached):
+            return [float(item) for item in cached]
+
+        embedding = self._embed_texts([normalized], text_type="query")[0]
+        set_json(
+            key,
+            embedding,
+            ttl=_positive_int_env("REDIS_EMBEDDING_TTL", 86400),
+        )
+        return embedding
 
 qwen_embeddings = QwenEmbeddings()
 

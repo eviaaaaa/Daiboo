@@ -10,6 +10,8 @@ def test_health_endpoint_exists_in_api():
     assert "HealthResponse" in api
     assert "tools_loaded" in api
     assert "agent_ready" in api
+    assert "cache_configured" in api
+    assert "cache_available" in api
 
 
 def test_health_response_model_defined():
@@ -18,3 +20,5 @@ def test_health_response_model_defined():
     assert "status: str" in api
     assert "tools_loaded: bool" in api
     assert "agent_ready: bool" in api
+    assert "cache_configured: bool" in api
+    assert "cache_available: bool" in api

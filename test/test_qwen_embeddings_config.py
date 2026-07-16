@@ -3,6 +3,20 @@ import sys
 import types
 from pathlib import Path
 
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def _disable_redis_cache(monkeypatch):
+    """Provider-selection tests must not be short-circuited by live Redis."""
+    monkeypatch.delenv("REDIS_URL", raising=False)
+    monkeypatch.delenv("DAIBOO_REDIS_URL", raising=False)
+    from utils.redis_cache import get_redis_client
+
+    get_redis_client.cache_clear()
+    yield
+    get_redis_client.cache_clear()
+
 
 def _load_embeddings_module():
     module_path = Path(__file__).resolve().parents[1] / "utils" / "qwen_embeddings.py"
@@ -69,6 +83,32 @@ def test_embedding_uses_dashscope_when_dashscope_key_set(monkeypatch):
     assert module.QwenEmbeddings().embed_query("hello") == [1.0] * 1536
     assert calls[0]["model"] == "text-embedding-v1"
     assert calls[0]["text_type"] == "query"
+
+
+def test_embedding_falls_back_to_local_for_chat_only_openai_gateway(monkeypatch):
+    calls = []
+
+    class FakeEmbeddings:
+        def __init__(self, **kwargs):
+            calls.append(kwargs)
+
+    monkeypatch.setitem(
+        sys.modules,
+        "langchain_openai",
+        types.SimpleNamespace(OpenAIEmbeddings=FakeEmbeddings),
+    )
+    monkeypatch.setenv("OPENAI_API_KEY", "chat-key")
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://api.deepseek.com/v1")
+    monkeypatch.delenv("OPENAI_EMBEDDING_MODEL", raising=False)
+    monkeypatch.delenv("OPENAI_EMBEDDING_API_KEY", raising=False)
+    monkeypatch.delenv("DASHSCOPE_API_KEY", raising=False)
+    monkeypatch.delenv("DAIBOO_LOCAL_EMBEDDINGS", raising=False)
+
+    module = _load_embeddings_module()
+    result = module.QwenEmbeddings().embed_query("hello")
+
+    assert len(result) == 1536
+    assert calls == []
 
 
 def test_embedding_falls_back_to_local_without_any_key(monkeypatch):

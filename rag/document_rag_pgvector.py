@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from typing import Any, Union, List
 from threading import Lock
@@ -12,7 +13,9 @@ from sqlalchemy import text, func, select, inspect
 from sqlalchemy.orm import Session
 from utils import qwen_embeddings
 from database import engine
+from database.indexes import ensure_database_indexes
 from entity.rag_document import RagDocument
+from utils.redis_cache import bump_namespace, get_json, set_json, versioned_cache_key
 from rag.document_chunking import (
     CHILD_CHUNK_OVERLAP,
     CHILD_CHUNK_SIZE,
@@ -36,7 +39,17 @@ _SCHEMA_COLUMNS = {
 _SCHEMA_INDEXES = {
     "ix_rag_documents_parent_id",
     "ix_rag_documents_chunk_level",
+    "ix_rag_documents_embedding_child_hnsw",
 }
+
+
+def _positive_int_env(name: str, default: int) -> int:
+    try:
+        value = int(os.getenv(name, str(default)))
+    except (TypeError, ValueError):
+        return default
+    return value if value > 0 else default
+
 
 def _inspection_engine():
     return engine._engine() if hasattr(engine, "_engine") else engine
@@ -79,6 +92,10 @@ def ensure_rag_document_schema():
             missing = ", ".join(sorted(_SCHEMA_COLUMNS - columns))
             raise RuntimeError(f"rag_documents schema is missing required columns: {missing}")
 
+        if not _SCHEMA_INDEXES.issubset(indexes):
+            ensure_database_indexes(_inspection_engine())
+            inspector = inspect(_inspection_engine())
+            indexes = {index["name"] for index in inspector.get_indexes("rag_documents")}
         if not _SCHEMA_INDEXES.issubset(indexes):
             missing = ", ".join(sorted(_SCHEMA_INDEXES - indexes))
             raise RuntimeError(f"rag_documents schema is missing required indexes: {missing}")
@@ -137,6 +154,44 @@ def _serialize_rag_document(doc: RagDocument) -> dict[str, Any]:
         "content_preview": doc.content[:320],
         "content_length": len(doc.content or ""),
     }
+
+
+def _deserialize_cached_documents(payload: object) -> list[RagDocument] | None:
+    if not isinstance(payload, list):
+        return None
+    documents: list[RagDocument] = []
+    for item in payload:
+        if not isinstance(item, dict) or not isinstance(item.get("content"), str):
+            return None
+        chunk_level = item.get("chunk_level")
+        raw_metadata = item.get("metadata")
+        metadata: dict[str, Any] = dict(raw_metadata) if isinstance(raw_metadata, dict) else {}
+        for path_key in ("source", "source_path", "file_path"):
+            metadata.pop(path_key, None)
+        document = RagDocument(
+            content=item["content"],
+            meta_data=metadata,
+            embedding=[],
+            chunk_level=None if chunk_level == "legacy" else chunk_level,
+            parent_id=item.get("parent_id"),
+            source_path=None,
+            source_name=item.get("source_name"),
+            chunk_index=item.get("chunk_index"),
+            start_index=item.get("start_index"),
+        )
+        documents.append(document)
+    return _sanitize_return_docs(documents)
+
+
+def _cache_return_documents(cache_key_value: str, results: list[RagDocument]) -> list[RagDocument]:
+    sanitized = _sanitize_return_docs(results)
+    set_json(
+        cache_key_value,
+        [_serialize_rag_document(doc) for doc in sanitized],
+        ttl=_positive_int_env("REDIS_RAG_SEARCH_TTL", 300),
+    )
+    return sanitized
+
 
 def save_document_to_pgvector(
     doc_paths: Union[Path, List[Path]],
@@ -268,6 +323,10 @@ def save_document_to_pgvector(
         session.add_all(child_records)
         session.commit()
 
+    # One generation bump invalidates every cached RAG search/summary key
+    # without an expensive Redis SCAN.
+    bump_namespace("rag")
+
     file_summaries = [
         {
             "source_name": item["source_name"],
@@ -297,6 +356,17 @@ def query_document_from_pgvector(query: str, top_k: int = 3, use_rerank: bool = 
     返回：
         list: 检索到的相关文档列表 (RagDocument 对象)
     """
+    result_cache_key = versioned_cache_key(
+        "rag-search",
+        "rag",
+        query.strip(),
+        top_k,
+        use_rerank,
+    )
+    cached_documents = _deserialize_cached_documents(get_json(result_cache_key))
+    if cached_documents is not None:
+        return cached_documents
+
     ensure_rag_document_schema()
 
     with Session(engine) as session:
@@ -318,7 +388,7 @@ def query_document_from_pgvector(query: str, top_k: int = 3, use_rerank: bool = 
                     parent_results.append(parent_doc)
             if parent_results:
                 print(f"🔍 查询 '{query}'，命中 {len(child_results)} 个子块，返回 {len(parent_results)} 个父块。")
-                return _sanitize_return_docs(parent_results)
+                return _cache_return_documents(result_cache_key, parent_results)
 
         # 兼容旧数据：没有大小块字段时，退回原来的扁平检索
         legacy_stmt = select(RagDocument).filter(
@@ -332,10 +402,10 @@ def query_document_from_pgvector(query: str, top_k: int = 3, use_rerank: bool = 
                 use_rerank=use_rerank,
             )
             print(f"🔍 查询 '{query}'，未命中新子块，回退返回 {len(legacy_results)} 个旧块。")
-            return _sanitize_return_docs(legacy_results)
+            return _cache_return_documents(result_cache_key, legacy_results)
 
     print(f"🔍 查询 '{query}'，找到 0 个相关文档。")
-    return []
+    return _cache_return_documents(result_cache_key, [])
 
 
 def debug_query_document_from_pgvector(
@@ -344,6 +414,17 @@ def debug_query_document_from_pgvector(
     use_rerank: bool = True,
 ) -> dict[str, Any]:
     """返回大块、小块和层级检索的调试结果，便于前端对比效果。"""
+    result_cache_key = versioned_cache_key(
+        "rag-debug-search",
+        "rag",
+        query.strip(),
+        top_k,
+        use_rerank,
+    )
+    cached = get_json(result_cache_key)
+    if isinstance(cached, dict):
+        return cached
+
     ensure_rag_document_schema()
 
     with Session(engine) as session:
@@ -425,7 +506,7 @@ def debug_query_document_from_pgvector(
                         for doc in legacy_results
                     ]
 
-    return {
+    result = {
         "query": query,
         "top_k": top_k,
         "use_rerank": use_rerank,
@@ -442,10 +523,21 @@ def debug_query_document_from_pgvector(
             "hierarchical": hierarchical_results,
         },
     }
+    set_json(
+        result_cache_key,
+        result,
+        ttl=_positive_int_env("REDIS_RAG_SEARCH_TTL", 300),
+    )
+    return result
 
 
 def get_rag_corpus_summary() -> dict[str, Any]:
     """返回当前索引库的概览信息，便于前端展示可测试数据范围。"""
+    summary_cache_key = versioned_cache_key("rag-summary", "rag")
+    cached = get_json(summary_cache_key)
+    if isinstance(cached, dict):
+        return cached
+
     ensure_rag_document_schema()
 
     with Session(engine) as session:
@@ -476,7 +568,7 @@ def get_rag_corpus_summary() -> dict[str, Any]:
             )
         ).mappings().all()
 
-    return {
+    result = {
         "total_parent_chunks": int(totals.parent_count or 0),
         "total_child_chunks": int(totals.child_count or 0),
         "total_legacy_rows": int(totals.legacy_count or 0),
@@ -490,3 +582,9 @@ def get_rag_corpus_summary() -> dict[str, Any]:
             for row in per_source_rows
         ],
     }
+    set_json(
+        summary_cache_key,
+        result,
+        ttl=_positive_int_env("REDIS_RAG_SUMMARY_TTL", 60),
+    )
+    return result

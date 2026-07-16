@@ -15,7 +15,7 @@ class RagDocument(Base, SearchableMixin):
     content: Mapped[str] = mapped_column(Text, default="")
     meta_data: Mapped[Dict[str, Any]] = mapped_column(JSONB, default_factory=dict)
     embedding: Mapped[List[float]] = mapped_column(Vector(1536), default_factory=list)
-    chunk_level: Mapped[Optional[str]] = mapped_column(default=None, nullable=True)
+    chunk_level: Mapped[Optional[str]] = mapped_column(default=None, nullable=True, index=True)
     parent_id: Mapped[Optional[int]] = mapped_column(default=None, nullable=True, index=True)
     source_path: Mapped[Optional[str]] = mapped_column(Text, default=None, nullable=True)
     source_name: Mapped[Optional[str]] = mapped_column(Text, default=None, nullable=True)

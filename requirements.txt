@@ -23,6 +23,7 @@ psycopg-binary>=3.3
 pydantic>=2.11
 pypdf>=6.4
 python-dotenv>=1.1
+redis>=5.2
 python-multipart>=0.0.20
 sentence-transformers>=5.1
 socksio>=1.0

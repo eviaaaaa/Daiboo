@@ -27,6 +27,8 @@ from utils.chat_history import (
     get_chat_session,
     list_chat_sessions,
 )
+from database.indexes import ensure_database_indexes
+from utils.redis_cache import cache_status
 
 load_dotenv(dotenv_path=project_env_file())
 setup_logging()
@@ -68,6 +70,21 @@ _mcp_session_cleanup: Any | None = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    try:
+        await asyncio.to_thread(ensure_database_indexes)
+        logger.info("Database indexes verified.")
+    except Exception:
+        # PostgreSQL/RAG is optional for core browser automation; keep the
+        # service available while making the degraded capability observable.
+        logger.exception("Database index bootstrap failed; RAG remains degraded")
+
+    redis_state = await asyncio.to_thread(cache_status)
+    logger.info(
+        "Redis cache configured={} available={}",
+        redis_state["configured"],
+        redis_state["available"],
+    )
+
     # 确保浏览器进程运行
     logger.info("Ensuring browser is running...")
     await ensure_browser_running()
@@ -263,11 +280,13 @@ class ErrorResponse(BaseModel):
 
 
 class HealthResponse(BaseModel):
-    """健康检查响应体。"""
+    """服务、Agent 和 Redis 缓存健康状态。"""
 
     status: str = Field(..., description="服务状态，正常时为 ok。")
     tools_loaded: bool = Field(..., description="MCP 工具是否已加载。")
     agent_ready: bool = Field(..., description="Agent 是否已编译就绪。")
+    cache_configured: bool = Field(..., description="是否配置了 Redis URL。")
+    cache_available: bool = Field(..., description="Redis 当前是否可连接。")
 
 
 @app.get("/", include_in_schema=False)
@@ -288,11 +307,14 @@ async def frontend_app_utils() -> FileResponse:
     tags=["system"],
 )
 async def health_check() -> dict[str, Any]:
-    """健康检查：MCP 工具 + Agent 是否就绪。"""
+    """健康检查：MCP 工具、Agent 和 Redis 缓存状态。"""
+    redis_state = await asyncio.to_thread(cache_status)
     return {
         "status": "ok",
         "tools_loaded": state.mcp_tools is not None,
         "agent_ready": hasattr(state, "agent") and state.agent is not None,
+        "cache_configured": redis_state["configured"],
+        "cache_available": redis_state["available"],
     }
 
 

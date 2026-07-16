@@ -83,7 +83,9 @@ class HybridSearchService:
         vector_results = []
         if embedding_field_name:
             embedding_column = getattr(model_class, embedding_field_name)
-            vector_stmt = select(model_class)
+            # The production RAG HNSW index is partial on non-null embeddings;
+            # keep this predicate explicit so PostgreSQL can select that index.
+            vector_stmt = select(model_class).filter(embedding_column.is_not(None))
             for field_name, field_value in filters.items():
                 if field_value is None or not hasattr(model_class, field_name):
                     continue

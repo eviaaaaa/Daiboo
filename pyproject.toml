@@ -41,6 +41,7 @@ dependencies = [
     "unstructured>=0.18",
     "docx2txt>=0.9",
     "uvicorn>=0.38",
+    "redis>=5.2",
 ]
 
 [project.urls]
