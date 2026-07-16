@@ -18,6 +18,7 @@
     绕过认证的路径（始终免鉴权）：
         /health — 健康检查
         / — 前端首页
+        /app_utils.js — 前端流解析工具
         /vendor/* — 静态资源
 """
 
@@ -54,7 +55,7 @@ def _get_rate_window() -> float:
 
 
 # 始终免鉴权的路径前缀
-_ALWAYS_ALLOW: tuple[str, ...] = ("/health", "/vendor/")
+_ALWAYS_ALLOW: tuple[str, ...] = ("/health", "/app_utils.js", "/vendor/")
 
 # ── 限流状态（进程内，重启重置）────────────────────────────────────────────────
 
@@ -104,7 +105,7 @@ def _client_key(request: Request) -> str:
 
 
 def _is_always_allowed(path: str) -> bool:
-    return path == "/" or any(path.startswith(p) for p in _ALWAYS_ALLOW)
+    return path in {"/", "/app_utils.js"} or any(path.startswith(p) for p in _ALWAYS_ALLOW)
 
 
 # ── 中间件 ────────────────────────────────────────────────────────────────────

@@ -24,26 +24,30 @@ def test_frontend_runtime_libraries_are_served_locally():
     assert "vendor/vue.global.js" in html
     assert "vendor/marked.min.js" in html
     assert "vendor/purify.min.js" in html
+    assert "app_utils.js" in html
 
 
-def test_frontend_has_linear_inspired_shell_styles():
+def test_frontend_uses_apple_inspired_design_system():
     html = _frontend_html()
 
-    assert "app-shell" in html
-    assert "linear-panel" in html
-    assert "linear-card" in html
+    assert "apple-shell" in html
+    assert "apple-sidebar" in html
+    assert "apple-card" in html
+    assert "-apple-system" in html
+    assert "prefers-color-scheme" in html
+    assert "prefers-reduced-motion" in html
+    assert "--apple-blue" in html
 
 
-def test_frontend_secondary_views_use_dark_console_surfaces():
+def test_frontend_secondary_views_use_consistent_grouped_surfaces():
     html = _frontend_html()
 
     assert "rag-workbench" in html
     assert "tools-workbench" in html
     assert "data-surface" in html
     assert "tool-card" in html
-    assert "text-gray-800" not in html
-    assert "class=\"bg-white" not in html
-    assert " class=\"bg-white" not in html
+    assert "apple-card" in html
+    assert "apple-toolbar" in html
 
 
 def test_frontend_has_responsive_mobile_navigation():
@@ -60,7 +64,7 @@ def test_frontend_has_responsive_mobile_navigation():
     assert "@click=\"fetchSkills(); currentTab = 'skills'\"" in html
 
 
-def test_frontend_markdown_is_readable_in_dark_agent_messages():
+def test_frontend_markdown_is_readable_in_agent_messages():
     html = _frontend_html()
 
     assert "markdown-body" in html
@@ -68,7 +72,7 @@ def test_frontend_markdown_is_readable_in_dark_agent_messages():
     assert ".markdown-body code" in html
     assert ".markdown-body a" in html
     assert "overflow-x: auto" in html
-    assert "JetBrains Mono" in html
+    assert "SFMono-Regular" in html
     assert "prose prose-sm" not in html
 
 
@@ -99,13 +103,48 @@ def test_frontend_skills_view_has_loading_error_and_empty_states():
     assert "encodeURIComponent(name)" in html
 
 
-def test_frontend_exposes_chat_history_controls():
+def test_frontend_exposes_compact_chat_history_controls():
     html = _frontend_html()
 
-    assert "历史会话" in html
+    assert "最近对话" in html
+    assert "history-panel" in html
+    assert "session-row" in html
+    assert "session-title" in html
+    assert "session-meta" in html
+    assert "session-delete" in html
+    assert "本地会话 · 自动保存" in html
+    assert "session.last_message" not in html
+    assert "Session: {{ threadId }}" not in html
     assert "fetchChatSessions" in html
     assert "loadChatSession" in html
     assert "deleteChatSession" in html
     assert "startNewChat" in html
     assert "`${API_BASE}/chat/sessions`" in html
     assert "`${API_BASE}/chat/sessions/${encodeURIComponent(sessionId)}`" in html
+
+
+def test_frontend_uses_session_scoped_api_key_for_all_requests():
+    html = _frontend_html()
+
+    assert "sessionStorage.getItem('daiboo-api-key')" in html
+    assert "sessionStorage.setItem('daiboo-api-key'" in html
+    assert "localStorage.setItem('daiboo-api-key'" not in html
+    assert "const apiFetch" in html
+    assert "headers.set('X-API-Key', key)" in html
+    assert "await fetch(" not in html
+    assert "API Key 无效或缺失" in html
+
+
+def test_frontend_streaming_checks_response_and_supports_abort():
+    html = _frontend_html()
+
+    assert "DaibooAppUtils.createNdjsonParser" in html
+    assert "if (!response.ok)" in html
+    assert "if (!response.body)" in html
+    assert "new AbortController()" in html
+    assert "stopChat" in html
+    assert "停止任务" in html
+    assert "stream-pending" in html
+    assert "msg.role === 'agent' && isThinking && index === chatHistory.length - 1 && !msg.content" in html
+    assert html.count("chatHistory.value.push({ role: 'agent', content: '' })") == 1
+    assert '<div v-if="isThinking" class="message-row">' not in html

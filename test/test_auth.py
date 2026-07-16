@@ -119,6 +119,19 @@ def test_auth_vendor_bypass(app_with_auth) -> None:
     assert resp.status_code == 200
 
 
+def test_auth_frontend_app_utils_bypass(app_with_auth) -> None:
+    """前端流解析脚本必须能在未带 API Key 时加载。"""
+    app = app_with_auth
+
+    @app.get("/app_utils.js")
+    async def app_utils():
+        return {"ok": True}
+
+    client = TestClient(app)
+    resp = client.get("/app_utils.js")
+    assert resp.status_code == 200
+
+
 # ── 限流 ───────────────────────────────────────────────────────────────────────
 
 def test_rate_limit_allows_under_limit(app_no_auth) -> None:

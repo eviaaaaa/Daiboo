@@ -271,6 +271,11 @@ async def frontend_index() -> FileResponse:
     return FileResponse(FRONTEND_DIR / "index.html")
 
 
+@app.get("/app_utils.js", include_in_schema=False)
+async def frontend_app_utils() -> FileResponse:
+    return FileResponse(FRONTEND_DIR / "app_utils.js", media_type="text/javascript")
+
+
 @app.get(
     "/health",
     summary="健康检查",
