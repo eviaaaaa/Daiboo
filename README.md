@@ -25,7 +25,7 @@ Daiboo（代步）通过 **@playwright/mcp** + LangChain/LangGraph 组合，实�
 
 ### 1. 环境要求
 
-- Python 3.11+
+- Python 3.11–3.13（推荐 3.11；当前锁中的 spaCy 尚无 Python 3.14 wheel）
 - Node.js 18+（建议 20+，用于运行 @playwright/mcp）
 - PostgreSQL 14+
 - 已启用 `vector` 扩展（PGVector）
@@ -36,7 +36,7 @@ Daiboo（代步）通过 **@playwright/mcp** + LangChain/LangGraph 组合，实�
 推荐使用 uv（快，锁定版本）：
 
 ```bash
-uv sync --locked --group dev
+uv sync --locked --group dev --python 3.11
 uv run playwright install chromium
 ```
 
@@ -52,7 +52,7 @@ playwright install
 Playwright MCP 由 `npx` 按已验证版本启动，无需全局安装。可先验证 Node/npm 链路：
 
 ```bash
-npx --yes @playwright/mcp@0.0.78 --version
+npx --yes @playwright/mcp@0.0.83 --version
 ```
 
 ### 3. 配置环境变量
@@ -72,14 +72,16 @@ cp .env.example .env
 请至少填写 `.env` 中以下配置：
 
 - 主聊天模型二选一：
-  - OpenAI 兼容接口：`OPENAI_API_KEY`，可选 `OPENAI_BASE_URL`、`OPENAI_MODEL`
+  - OpenAI 兼容接口：`OPENAI_API_KEY` **及显式的 `OPENAI_MODEL`**，可选 `OPENAI_BASE_URL`。`OPENAI_API_MODE=responses|chat_completions` 明确选择协议，`OPENAI_STREAMING=true` 开启原生 SSE。新模型工具调用是否需要 Responses，以官方与实际接口为准，不按名字猜测。
   - DashScope 兼容路径：`DASHSCOPE_API_KEY`（当 `OPENAI_API_KEY` 留空时自动回退）
 - hCaptcha 求解二选一：
   - GLM 路径：`LLM_PROVIDER=glm`、`GLM_API_KEY`，可选 `GLM_BASE_URL`、`GLM_MODEL`
   - Gemini 路径：`GEMINI_API_KEY`
 - RAG/文档上传功能需要 PostgreSQL + PGVector：`DB_HOST`、`DB_PORT`、`DB_NAME`、`DB_USER`、`DB_PASSWORD`
 - 浏览器控制：`BROWSER_PATH`、`USER_DATA_DIR`、`DEBUGGING_PORT`、`BROWSER_HEADLESS=auto|true|false`。Linux 的 `auto` 会先正常启动，CDP 未就绪时自动用 `--headless=new` 重试一次。
-- MCP：`PLAYWRIGHT_MCP_VERSION`（默认固定为已验证的 `0.0.78`）、`NPX_COMMAND`（可选自定义 npx 路径）。
+- MCP：`PLAYWRIGHT_MCP_VERSION`（默认固定为已验证的 `0.0.83`）、`NPX_COMMAND`（可选自定义 npx 路径）；`PLAYWRIGHT_MCP_CAPS=vision` 可改为 `vision,pdf,devtools` 或 `none`。`DAIBOO_BROWSER_SNAPSHOT_MODE=none` 默认只在显式观察时返回快照，可设 `full` 恢复自动快照。
+- OpenAI 参数：可选 `OPENAI_REASONING_EFFORT`、`OPENAI_REASONING_SUMMARY`（仅 Responses）、`OPENAI_VERBOSITY`、`OPENAI_SERVICE_TIER`、`OPENAI_MAX_OUTPUT_TOKENS`、`OPENAI_TEMPERATURE`。未设置温度时不强制发送；不替供应商伪造参数兼容性。`OPENAI_USE_RESPONSES_API` 为旧布尔别名，不能与协议配置冲突。Responses 保留推理/函数调用原生内容块，`normalize_content` 只用于显示，不用于历史回放。经验总结复用已配置的主模型供应商。
+- 浏览器节奏：默认使用 Playwright auto-wait，不再每个动作固定等 500ms；老站可用 `BROWSER_ACTION_DELAY_MS=0..10000` 显式增加等待。
 - Web 服务可选项：`HOST`（默认 `127.0.0.1`）、`PORT`（默认 `8801`，范围 `1..65535`）、`UPLOAD_DIR`（默认 `temp_uploads/`）、`UPLOAD_MAX_MB`（默认 20）。上传只接受 `.pdf/.doc/.docx/.md/.txt`，临时文件在索引结束或失败后都会删除。
 
 可选增强（不配置不影响运行）：
@@ -94,7 +96,7 @@ cp .env.example .env
 - 聊天历史文件：`DAIBOO_CHAT_HISTORY_FILE`（默认 `DAIBOO_CHECKPOINT_DIR/chat_history.json`）
 - 演示模式：`DAIBOO_DEMO_MODE=1` 时 `/chat` 返回固定演示事件，不实际调用 Agent
 
-运行时数据默认不入库：`.env`、`.public-auth`、`data/`、`storage/`、`screen/`、`temp_uploads/` 等均已被 `.gitignore` 忽略；不要把本地认证文件、checkpoint 数据库或聊天历史提交到 Git。
+运行时数据默认不入 Git：`.env`、`.public-auth`、`data/`、`storage/`、`screen/`、`temp_uploads/` 等均已被 `.gitignore` 忽略；不要把本地认证文件、checkpoint 数据库或聊天历史提交到 Git。上下文与最终日志旁的同名 JSON sidecar 用于原生消息回放，包含 typed blocks、调用关联及元数据，按 `0600` 权限保存；它与仅供显示的文本日志用途不同，仍应视作敏感运行时数据。
 
 详见 `.env.example` 中注释。
 
@@ -149,14 +151,17 @@ uv run daiboo
 
 ## 工具集
 
-Agent 在每次对话中可见的工具分两类：
+完整执行工具集分为以下两类；模型请求初始只披露六个核心浏览器工具（导航、快照、标签页、批次、能力查询、页面观察）及既有非浏览器工具。调用 `browser_runtime_info(tool_names=[...])` 成功后，才按需追加对应的原生 schema；`GET /tools` 返回的是完整公开工具集，不是每轮模型请求的工具列表。
 
 **MCP 浏览器原子工具**（由 `@playwright/mcp` 动态加载）：`browser_navigate` / `browser_snapshot` / `browser_click` / `browser_type` / `browser_fill_form` / `browser_press_key` / `browser_select_option` / `browser_tabs` / `browser_evaluate` / `browser_file_upload` / `browser_take_screenshot` / `browser_wait_for` 等。MCP 启动参数包含 `--caps=vision`，运行时还会暴露 `browser_mouse_*_xy` 等坐标类工具。详细列表运行时通过 `GET /tools` 查询。
 
 **本仓库自定义工具**（在 `tools/` 下）：
 
-- `list_skills` / `view_skill`：Skill 技能系统。`list_skills` 列出所有可用技能及描述，`view_skill(name)` 加载完整技能内容。Agent 每次任务前应先调用 `list_skills` 查看有无匹配技能。
-- `web_observe`：基于 simphtml 的 LLM-friendly 页面观察。**跨 iframe 与 Shadow DOM 内容内联**、自动剔除浮窗广告、字符预算可控（默认 35000）、表单当前值落入属性。与 `browser_snapshot` 共存，不替换。
+- `list_skills` / `view_skill`：名称与描述目录在创建 Agent 时固定提供，正文按需用 `view_skill(name)` 加载；只有缺少目录或需要刷新时才调用 `list_skills`，普通问答不额外查询。
+- `browser_batch`：最多 12 个已观察目标上的顺序填表、点击、等待、限额读取与文本断言，一次持久 MCP 调用；部分失败返回已完成步数，不自动重试或回滚。`verified` 只代表显式文本断言，重要外部操作仍需独立复核。
+- `browser_runtime_info`：披露当前会话的实际能力、工具名及指定工具的 schema，不按模型名假定支持。
+- 同一 MCP 会话的批次、原子操作与 diff 临界区共用执行门，不并发穿插浏览器动作。批次在导航、同 URL 重载、文档替换或新窗口后停止；错误仅返回固定分类，不附可能带出敏感 DOM 值的原始 Playwright call log。
+- `web_observe`：基于 simphtml 的 LLM-friendly 页面观察。可内联**同源 iframe 与开放 Shadow DOM**，文本/HTML 均有硬字符预算（默认 35000）；密码值不写入简化 DOM。与 `browser_snapshot` 共存，不绕过同源策略。
   - `text_only=True`：纯文本输出，最省 token，适合"快速看页面写了啥"
   - `text_only=False`（默认）：简化 HTML 输出，保留结构便于后续 `browser_snapshot` 拿 ref 操作
 - `capture_element_context`：截取目标元素及周围上下文的截图，返回本地路径。
@@ -170,7 +175,11 @@ Agent 在每次对话中可见的工具分两类：
 - `[diff] 最显著变化: <html>...</html>`
 - `[transients] [...]`：动作期间出现的瞬时文本（toast / 错误提示 / loading）
 
-由 `loggers/diff_middleware.py` 实现，省下 LLM "做动作 → 再 snapshot 验证" 的下一轮。
+由 `loggers/diff_middleware.py` 实现，属于 best-effort 变化线索，不是业务成功证据；批次直接返回精准读取/断言，避免整页 diff 的额外往返。
+
+原生 `browser_run_code` / `browser_run_code_unsafe` 默认不向模型暴露；只有明确理解风险时才设 `DAIBOO_BROWSER_ALLOW_UNSAFE_CODE=true`。固定代码批次不是授权或安全沙箱，页面、网页工具及结果均不可信。密码、OTP、银行卡及未经授权的发信/付款/发布/删除不可通过批次绕过批准。框架保留终端 HITL；提示词规则不是完整的浏览器权限系统。
+
+最新技术取舍、Jev 的准确定位、实测方法与边界见 [浏览器运行时设计与验收](docs/browser-runtime.md)。
 
 ## API 快速说明
 
@@ -207,6 +216,9 @@ uv run python -m pytest test/test_hcaptcha_solver_classification.py -v
 ```powershell
 uv run python test/manual/epic_login_manual.py
 uv run python test/manual/hcaptcha_demo_manual.py --prompt v4 --recursion 120
+uv run python test/manual/browser_runtime_smoke.py
+# 以下产生真实模型请求，先配置授权的 OPENAI_*；不自动切换供应商。
+uv run python test/manual/openai_browser_smoke.py --graph --report browser-acceptance.json
 ```
 
 其中 hCaptcha demo 只面向官方演示站和授权测试场景；`--prompt v4` 会调用 `solve_hcaptcha`，需要已配置 GLM 或 Gemini 相关环境变量。
@@ -215,7 +227,7 @@ uv run python test/manual/hcaptcha_demo_manual.py --prompt v4 --recursion 120
 
 - `ModuleNotFoundError`：检查是否激活虚拟环境并已安装依赖。
 - 数据库报错 `extension "vector" does not exist`：在目标数据库执行 `CREATE EXTENSION IF NOT EXISTS vector;`。
-- MCP 连接失败 / `npx` 找不到：确认 Node.js 已安装且 `npx --yes @playwright/mcp@0.0.78 --version` 可运行；如需切换已验证版本或命令路径，设置 `PLAYWRIGHT_MCP_VERSION` / `NPX_COMMAND`。
+- MCP 连接失败 / `npx` 找不到：确认 Node.js 已安装且 `npx --yes @playwright/mcp@0.0.83 --version` 可运行；如需切换已验证版本或命令路径，设置 `PLAYWRIGHT_MCP_VERSION` / `NPX_COMMAND`。
 - 浏览器未启动 / CDP 连接被拒绝：检查 `.env` 中 `BROWSER_PATH`、`DEBUGGING_PORT` 和 `BROWSER_HEADLESS`。启动器会访问 `/json/version` 验证真实 CDP；Linux `auto` 模式在首次失败后自动用 `--headless=new` 重试。
 - `PORT must be an integer between 1 and 65535`：检查 `.env` 中 `PORT` 是否为空、非数字或超出端口范围。
 - `solve_hcaptcha` 返回 `missing_*_api_key`：检查 `.env` 是否配置 `LLM_PROVIDER=glm + GLM_API_KEY`，或配置可直连的 `GEMINI_API_KEY`。

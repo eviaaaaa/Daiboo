@@ -16,6 +16,17 @@ uv run python test/manual/epic_login_manual.py
 
 ## 脚本清单
 
+- `browser_runtime_smoke.py`：不调用模型的真实隔离 Chromium/CDP + 持久 Playwright MCP 测试；覆盖表单、SPA 事件、快照范围、预算、失败进度与业务结果回读。随机回环端口、临时 profile，结束清理自己创建的进程。
+- `openai_browser_smoke.py`：显式 opt-in 的真实 OpenAI Responses SSE / 原生图像 / 工具调用与隔离表单验收。需要 `OPENAI_API_KEY`、`OPENAI_BASE_URL`、`OPENAI_MODEL`，不会发现私有凭据或自动更换供应商。`--graph` 使用产品 factory/middleware；不加时测受限工具循环。`--browser-only` 避免重复图像/协议请求；`--report PATH` 写不含凭据/推理正文的 JSON。
+
+  ```bash
+  uv run python test/manual/browser_runtime_smoke.py
+  # 会产生真实供应商请求；仅使用已获授权的 endpoint/model。
+  uv run python test/manual/openai_browser_smoke.py --graph --report browser-acceptance.json
+  ```
+
+真实模型通过不代表付款、登录、验证码或跨域框架页面已测试；本地确定性 embedding 也不证明语义检索质量。完整边界见 `docs/browser-runtime.md`。
+
 - `epic_login_manual.py`：Epic Games 登录联调，验证基础登录链路。
 - `hcaptcha_demo_manual.py`：在 hCaptcha 官方演示站
   <https://accounts.hcaptcha.com/demo> 上测 agent 的「先 ref、后观察 challenge、
