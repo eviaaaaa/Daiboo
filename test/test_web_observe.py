@@ -283,21 +283,43 @@ async def test_web_observe_html_budget_is_a_hard_limit(monkeypatch):
 )
 @pytest.mark.asyncio
 async def test_web_observe_integration_basic():
-    """端到端：在真 MCP 会话上跑一次 web_observe，至少能拿回非空 HTML。"""
-    from utils.my_browser import ensure_browser_running
+    """Real MCP/Chromium observation against an owned deterministic HTTP page."""
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    from threading import Thread
+    from utils.my_browser import cleanup_browser, ensure_browser_running
     from utils.mcp_client import create_persistent_mcp_session
     from tools.web_observe_tool import WebObserveTool
 
-    await ensure_browser_running()
-    async with create_persistent_mcp_session() as mcp_tools:
-        # 先 navigate 到一个简单页面
-        nav = next(t for t in mcp_tools if t.name == 'browser_navigate')
-        await nav.ainvoke({'url': 'https://example.com'})
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            body = b'<!doctype html><html><body><h1>Daiboo local integration fixture</h1><p>Observed through real MCP</p></body></html>'
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/html; charset=utf-8')
+            self.send_header('Content-Length', str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
 
-        tool = WebObserveTool(mcp_tools=list(mcp_tools))
-        result = await tool._arun(text_only=False, max_chars=10000)
+        def log_message(self, format, *args):
+            pass
 
-        assert result['ok'] is True, result
-        assert result['mode'] == 'html'
-        assert result['char_count'] > 0
-        assert 'Example Domain' in result['content']
+    server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        await ensure_browser_running()
+        async with create_persistent_mcp_session() as mcp_tools:
+            nav = next(t for t in mcp_tools if t.name == 'browser_navigate')
+            await nav.ainvoke({'url': f'http://127.0.0.1:{server.server_port}'})
+            tool = WebObserveTool(mcp_tools=mcp_tools)
+            result = await tool._arun(text_only=False, max_chars=10000)
+
+            assert result['ok'] is True, result
+            assert result['mode'] == 'html'
+            assert result['char_count'] > 0
+            assert 'Daiboo local integration fixture' in result['content']
+            assert 'Observed through real MCP' in result['content']
+    finally:
+        cleanup_browser()  # Only closes a browser this process actually launched.
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=3)

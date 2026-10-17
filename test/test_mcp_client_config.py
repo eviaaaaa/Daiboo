@@ -12,6 +12,7 @@ def _reload_mcp_client():
 
 def test_mcp_connection_uses_default_cdp_endpoint(monkeypatch):
     monkeypatch.delenv("NPX_COMMAND", raising=False)
+    monkeypatch.delenv("DEBUGGING_PORT", raising=False)
 
     mcp_client = _reload_mcp_client()
     connection = mcp_client._mcp_connection()
