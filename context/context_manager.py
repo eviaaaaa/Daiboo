@@ -16,6 +16,8 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langgraph.graph.message import REMOVE_ALL_MESSAGES
 from langgraph.runtime import Runtime
 from utils.log_path import build_timestamped_filename
+from utils.qwen_model import normalize_content
+from langchain_core.utils.function_calling import convert_to_openai_tool
 
 # 尝试导入 AgentMiddleware；如果不可用，则定义兼容的基础类
 try:
@@ -42,13 +44,13 @@ class ConversationRoundData:
         text = ""
         for msg in self.messages:
             role = msg.type
-            content = msg.content
+            content = normalize_content(msg.content)
             text += f"{role}: {content}\n"
         return text
     
     def to_json(self) -> str:
         # 将消息序列化为 JSON
-        return json.dumps([m.dict() for m in self.messages], default=str, ensure_ascii=False)
+        return json.dumps([m.model_dump() for m in self.messages], default=str, ensure_ascii=False)
 
 class ContextManagerMiddleware(AgentMiddleware):
     def __init__(
@@ -110,11 +112,26 @@ class ContextManagerMiddleware(AgentMiddleware):
 
     def _save_to_file(self, content: str, prefix: str) -> str:
         """将内容保存到文件并返回路径"""
-        file_name = build_timestamped_filename(prefix, self.session_id)
+        # Several messages can be offloaded in the same second. Never overwrite
+        # an earlier payload with the next message's archive.
+        file_name = build_timestamped_filename(f"{prefix}_{uuid.uuid4().hex[:12]}", self.session_id)
         file_path = os.path.join(self.file_store_path, file_name)
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(content)
         return file_path
+
+    def _save_message_archive(self, messages: list[AnyMessage], prefix: str, text: str | None = None) -> str:
+        """Readable projection plus a private native-message JSON sidecar.
+
+        Display text is not replay data: reasoning IDs, typed blocks, call IDs,
+        artifacts and metadata must survive in the sidecar, never in previews.
+        """
+        data = ConversationRoundData(messages)
+        path = self._save_to_file(data.full_text if text is None else text, prefix)
+        payload_path = os.path.splitext(path)[0] + ".json"
+        with open(payload_path, "x", encoding="utf-8", opener=lambda p, flags: os.open(p, flags, 0o600)) as f:
+            f.write(data.to_json())
+        return path
 
     def _create_preview(self, content: str, preview_len: int = 500) -> str:
         """生成内容预览"""
@@ -162,21 +179,48 @@ class ContextManagerMiddleware(AgentMiddleware):
             self.session_id = str(session_id)
 
     def _content_to_text(self, content: Any) -> str:
-        """将字符串或多模态 content 统一转为可计数文本。"""
-        if isinstance(content, str):
-            return content
-        if isinstance(content, list):
-            text_parts = []
-            for item in content:
-                if isinstance(item, dict):
-                    if item.get("type") == "text":
-                        text_parts.append(str(item.get("text", "")))
-                    elif item.get("type") == "image_url":
-                        text_parts.append("[图片内容]")
-                else:
-                    text_parts.append(str(item))
-            return "".join(text_parts)
-        return str(content)
+        """Display-only projection; token counters receive native messages."""
+        return normalize_content(content)
+
+    def _count_for_model(self, messages, model) -> int:
+        # An explicitly injected counter remains authoritative (and offline).
+        if self.token_counter is count_tokens_approximately and model is not None:
+            try:
+                return model.get_num_tokens_from_messages(list(messages))
+            except (NotImplementedError, ImportError, ValueError, TypeError):
+                pass
+        return self.token_counter(messages)
+
+    def _prepare_model_request(self, request):
+        """Budget against the *actual* system prompt and selected tool schemas.
+
+        Tool schemas are counted as serialized text because several LangChain
+        providers silently ignore the tools= token-count argument. This is an
+        estimate, not a claim of provider-exact billing. No shared mutable budget
+        is used, so simultaneous requests cannot affect one another.
+        """
+        count = lambda messages: self._count_for_model(messages, request.model)
+        fixed = []
+        if request.system_message is not None:
+            fixed.append(request.system_message)
+        if request.tools:
+            schemas = [convert_to_openai_tool(tool) for tool in request.tools]
+            fixed.append(SystemMessage(content=json.dumps(schemas, ensure_ascii=False, default=str)))
+        fixed_tokens = count(fixed) if fixed else 0
+        budget = max(0, self.max_context_tokens - fixed_tokens)
+        messages = request.messages
+        self._ensure_message_ids(messages)
+        self._sync_session_id_from_state(request.state or {}, messages)
+        if count(messages) < budget:
+            return request
+        archived = self._archive_old_rounds(messages, max_context_tokens=budget, token_counter=count)
+        return request.override(messages=archived) if archived != messages else request
+
+    def wrap_model_call(self, request, handler):
+        return handler(self._prepare_model_request(request))
+
+    async def awrap_model_call(self, request, handler):
+        return await handler(self._prepare_model_request(request))
 
     def _ensure_message_ids(self, messages: list[AnyMessage]) -> None:
         for msg in messages:
@@ -223,7 +267,7 @@ class ContextManagerMiddleware(AgentMiddleware):
                 continue
 
             # 长内容压缩：保存到文件并替换为预览
-            file_path = self._save_to_file(content_str, "toolmsg_content")
+            file_path = self._save_message_archive([msg], "toolmsg_content", content_str)
             preview = self._create_preview(content_str, self.tool_preview_chars)
 
             new_content = (
@@ -235,13 +279,7 @@ class ContextManagerMiddleware(AgentMiddleware):
             )
 
             # 创建新的 ToolMessage，保留必要字段
-            new_messages[idx] = ToolMessage(
-                content=new_content,
-                tool_call_id=msg.tool_call_id,
-                name=msg.name,
-                id=msg.id,
-                additional_kwargs=msg.additional_kwargs
-            )
+            new_messages[idx] = msg.model_copy(update={"content": new_content})
             print(f"⚠️ 旧 ToolMessage 已压缩: {content_len} 字符 -> {file_path}")
 
         return new_messages
@@ -257,7 +295,7 @@ class ContextManagerMiddleware(AgentMiddleware):
                 tokens_exceeded = message_tokens > self.single_msg_limit
 
                 if tokens_exceeded:
-                    file_path = self._save_to_file(content_str, "msg_content")
+                    file_path = self._save_message_archive([msg], "msg_content", content_str)
                     preview = self._create_preview(content_str, 500)
 
                     new_content = (
@@ -269,12 +307,7 @@ class ContextManagerMiddleware(AgentMiddleware):
                     )
 
                     # 创建带有新内容的副本
-                    if isinstance(msg, HumanMessage):
-                        msg_copy = HumanMessage(content=new_content, id=msg.id, additional_kwargs=msg.additional_kwargs)
-                    elif isinstance(msg, ToolMessage):
-                        msg_copy = ToolMessage(content=new_content, tool_call_id=msg.tool_call_id, name=msg.name, id=msg.id, additional_kwargs=msg.additional_kwargs)
-                    else:
-                        msg_copy = msg
+                    msg_copy = msg.model_copy(update={"content": new_content})
 
                     new_messages.append(msg_copy)
                     print(f"⚠️ 消息过长已卸载 (token超限): {content_len} 字符 -> {file_path}")
@@ -283,13 +316,16 @@ class ContextManagerMiddleware(AgentMiddleware):
             new_messages.append(msg)
         return new_messages
 
-    def _archive_old_rounds(self, messages: list[AnyMessage]) -> list[AnyMessage]:
+    def _archive_old_rounds(self, messages: list[AnyMessage], *, max_context_tokens: int | None = None,
+                            token_counter: TokenCounter | None = None) -> list[AnyMessage]:
         """
         新的压缩策略：
         1. 先计算最后一条 HumanMessage 及其之后的所有消息的 token 数
         2. 如果超出限制：压缩除最后一条消息外的所有消息（不包括 SystemMessage）
         3. 如果没超出限制：压缩从第一个 HumanMessage 到最后一个 HumanMessage 前一条消息
         """
+        count = token_counter or self.token_counter
+        budget = self.max_context_tokens if max_context_tokens is None else max_context_tokens
         system_msgs = [m for m in messages if isinstance(m, SystemMessage)]
         chat_history = [m for m in messages if not isinstance(m, SystemMessage)]
         
@@ -297,7 +333,7 @@ class ContextManagerMiddleware(AgentMiddleware):
             return messages
         
         # 计算 SystemMessage 的 token 数
-        system_tokens = self.token_counter(system_msgs)
+        system_tokens = count(system_msgs)
         
         # 找到最后一条 HumanMessage 的位置
         last_human_idx = -1
@@ -312,10 +348,10 @@ class ContextManagerMiddleware(AgentMiddleware):
         
         # 计算最后一条 HumanMessage 及其之后的所有消息的 token 数
         recent_messages = chat_history[last_human_idx:]
-        recent_tokens = self.token_counter(recent_messages) + system_tokens
+        recent_tokens = count(recent_messages) + system_tokens
         
         # 策略 1: 如果最近的消息已经超出限制，压缩除最后一条外的所有消息
-        if recent_tokens > self.max_context_tokens:
+        if recent_tokens > budget:
             if last_human_idx == 0:
                 # 只有一条 HumanMessage，无法压缩
                 return messages
@@ -356,11 +392,7 @@ class ContextManagerMiddleware(AgentMiddleware):
                 else:
                     new_content = f"{notice_text}\n\n{original_content}"
                 
-                messages_to_keep[i] = HumanMessage(
-                    content=new_content,
-                    id=msg.id,
-                    additional_kwargs=msg.additional_kwargs
-                )
+                messages_to_keep[i] = msg.model_copy(update={"content": new_content})
                 break
         
         # 组装最终消息列表
@@ -375,7 +407,7 @@ class ContextManagerMiddleware(AgentMiddleware):
         
         # 将消息保存到文件
         round_data = ConversationRoundData(messages_to_archive)
-        file_path = self._save_to_file(round_data.full_text, "archived_messages")
+        file_path = self._save_message_archive(messages_to_archive, "archived_messages")
         preview = self._create_preview(round_data.full_text, 200)
         
         return (f"[系统]: {reason}\n\n"
@@ -388,7 +420,7 @@ class ContextManagerMiddleware(AgentMiddleware):
         
         for i, round_data in enumerate(rounds_to_archive):
             # 保存到文件系统
-            file_path = self._save_to_file(round_data.full_text, "round_archive")
+            file_path = self._save_message_archive(round_data.messages, "round_archive")
             
             archived_items.append({
                 "file_path": file_path,

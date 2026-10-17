@@ -319,6 +319,195 @@ def test_message_order_after_compression():
 
 
 # ---------------------------------------------------------------------------
+# Responses payload / request-budget regressions (real LangChain messages)
+# ---------------------------------------------------------------------------
+
+import json
+import pytest
+from langchain.agents.middleware.types import ModelRequest
+from langchain_core.language_models.fake_chat_models import FakeListChatModel
+from context.context_manager import ConversationRoundData
+
+
+def _responses_messages():
+    ai = AIMessage(
+        id="ai-responses",
+        content=[
+            {"type": "reasoning", "id": "rs_1", "encrypted_content": "opaque-replay", "summary": []},
+            {"type": "text", "text": "visible answer", "id": "msg_1", "annotations": []},
+        ],
+        tool_calls=[{"name": "browser_snapshot", "args": {}, "id": "call_1"}],
+        response_metadata={"id": "resp_1", "model_name": "fixture-model"},
+        usage_metadata={"input_tokens": 12, "output_tokens": 3, "total_tokens": 15},
+    )
+    tool = ToolMessage(
+        id="tool-1", name="browser_snapshot", tool_call_id="call_1",
+        content=[{"type": "output_text", "text": "result " * 400}],
+        status="error", artifact={"raw": {"ok": False, "source": "fixture"}},
+        additional_kwargs={"provider": "fixture"}, response_metadata={"latency": 7},
+    )
+    return ai, tool
+
+
+def test_uncompressed_responses_messages_keep_native_identity(tmp_path):
+    ai, tool = _responses_messages()
+    human = HumanMessage(content=[{"type": "input_text", "text": "question"}], id="h")
+    messages = [human, ai, tool]
+    before = [m.model_dump() for m in messages]
+    mw = _make_middleware(file_store_path=str(tmp_path), recent_tool_messages_to_keep=3)
+    assert mw.before_model({"messages": messages}, None) is None
+    assert messages[1] is ai and messages[2] is tool
+    assert [m.model_dump() for m in messages] == before
+
+
+def test_context_display_projects_responses_text_without_reasoning(tmp_path):
+    mw = _make_middleware(file_store_path=str(tmp_path))
+    content = [
+        {"type": "reasoning", "text": "private-thought", "encrypted_content": "opaque-replay"},
+        {"type": "output_text", "text": "visible"},
+        {"type": "input_text", "text": " question"},
+        {"type": "refusal", "refusal": " refused"},
+    ]
+    assert mw._content_to_text(content) == "visible question refused"
+    assert ConversationRoundData([AIMessage(content=content)]).full_text == "ai: visible question refused\n"
+
+
+@pytest.mark.parametrize("mode", ["old-tool", "single-message"])
+def test_compression_preserves_all_tool_metadata_and_archives_raw_payload(tmp_path, mode):
+    ai, tool = _responses_messages()
+    original = tool.model_dump()
+    mw = _make_middleware(
+        file_store_path=str(tmp_path), short_content_chars=20,
+        recent_tool_messages_to_keep=0,
+    )
+    if mode == "old-tool":
+        result = mw._compress_old_tool_messages([ai, tool])
+    else:
+        mw.single_msg_limit = 1
+        result = mw._offload_heavy_messages([ai, tool])
+    assert result[0] is ai
+    replacement = result[1]
+    assert replacement is not tool
+    assert replacement.model_dump(exclude={"content"}) == tool.model_dump(exclude={"content"})
+    assert "BEGIN PREVIEW" in replacement.content
+    assert tool.model_dump() == original
+    payloads = [json.loads(p.read_text()) for p in tmp_path.glob("*.json")]
+    assert any(original in payload for payload in payloads), "offload must retain a full replay payload, not only display text"
+
+
+def test_archive_keeps_full_call_result_and_latest_human_metadata(tmp_path):
+    ai, tool = _responses_messages()
+    human = HumanMessage(
+        content=[{"type": "input_text", "text": "latest"}], id="h2", name="user-name",
+        additional_kwargs={"provider": "fixture"}, response_metadata={"origin": "test"},
+    )
+    mw = _make_middleware(file_store_path=str(tmp_path))
+    result = mw._archive_old_rounds([HumanMessage(content="old", id="h1"), ai, tool, human])
+    assert len(result) == 1 and isinstance(result[0], HumanMessage)
+    assert result[0].model_dump(exclude={"content"}) == human.model_dump(exclude={"content"})
+    assert result[0].content[1:] == human.content
+    payloads = [json.loads(p.read_text()) for p in tmp_path.glob("*.json")]
+    assert any(ai.model_dump() in p and tool.model_dump() in p for p in payloads)
+    text = "\n".join(p.read_text() for p in tmp_path.glob("*.txt"))
+    assert "opaque-replay" not in text and "visible answer" in text
+
+
+class _CountingRequestModel(FakeListChatModel):
+    counted: list = []
+
+    def get_num_tokens_from_messages(self, messages, tools=None):
+        self.counted.append((list(messages), tools))
+        return sum(len(m.content) if isinstance(m.content, str) else 10 for m in messages)
+
+
+def test_request_budget_counts_actual_system_and_tool_schemas(tmp_path):
+    model = _CountingRequestModel(responses=["unused"], profile={"max_input_tokens": 1000})
+    mw = _make_middleware(
+        model=model, file_store_path=str(tmp_path), max_token_ratio=1.0,
+        single_msg_ratio=1.0,
+    )
+    schema = {"type": "function", "function": {"name": "large_tool", "description": "d" * 800,
+              "parameters": {"type": "object", "properties": {}}}}
+    latest = HumanMessage(content="latest", id="h2")
+    request = ModelRequest(model=model, messages=[HumanMessage(content="old", id="h1"),
+        AIMessage(content="reply", id="a1"), latest],
+        system_message=SystemMessage(content="s" * 150), tools=[schema], state={"messages": []})
+    captured = []
+    response = AIMessage(content="handler-result")
+    assert mw.wrap_model_call(request, lambda r: captured.append(r) or response) is response
+    assert len(captured[0].messages) == 1, "fixed system/tool cost must trigger old-turn archive"
+    assert captured[0].system_message is request.system_message
+    assert captured[0].tools == [schema]
+    assert len(request.messages) == 3, "request overrides must not mutate the original"
+    assert model.counted, "use the actual request model's counter when available"
+
+
+def test_native_archive_roundtrips_responses_payload_and_does_not_overwrite(tmp_path):
+    from langchain_core.messages import messages_from_dict
+
+    mw = _make_middleware(file_store_path=str(tmp_path))
+    ai, tool = _responses_messages()
+    first = mw._save_message_archive([ai, tool], "same-prefix")
+    second = mw._save_message_archive([ai], "same-prefix")
+    assert first != second
+    payload_file = Path(first).with_suffix(".json")
+    payload = json.loads(payload_file.read_text())
+    restored = messages_from_dict([{"type": item["type"], "data": item} for item in payload])
+    assert [m.model_dump() for m in restored] == [ai.model_dump(), tool.model_dump()]
+    assert payload_file.stat().st_mode & 0o777 == 0o600
+
+
+def test_real_openai_counter_typed_block_rejection_falls_back_without_payload_loss(tmp_path):
+    from langchain_openai import ChatOpenAI
+
+    # The model is never invoked. Its local counter currently rejects input_text.
+    model = ChatOpenAI(model="gpt-4.1", api_key="fixture", base_url="http://127.0.0.1:1/v1")
+    human = HumanMessage(content=[{"type": "input_text", "text": "question"}], id="h1")
+    with pytest.raises(ValueError, match="Unrecognized content block type"):
+        model.get_num_tokens_from_messages([human])
+    ai, tool = _responses_messages()
+    request = ModelRequest(model=model, messages=[human, ai, tool], tools=[])
+    original = [m.model_dump() for m in request.messages]
+    mw = _make_middleware(file_store_path=str(tmp_path), model=model)
+    captured = []
+    mw.wrap_model_call(request, lambda r: captured.append(r) or AIMessage(content="done"))
+    assert captured[0] is request
+    assert [m.model_dump() for m in captured[0].messages] == original
+
+
+@pytest.mark.asyncio
+async def test_async_request_budget_uses_the_same_fixed_cost_accounting(tmp_path):
+    model = _CountingRequestModel(responses=["unused"], profile={"max_input_tokens": 100})
+    mw = _make_middleware(model=model, max_token_ratio=1.0, file_store_path=str(tmp_path))
+    request = ModelRequest(model=model, messages=[HumanMessage(content="old", id="h1"),
+        AIMessage(content="reply", id="a1"), HumanMessage(content="new", id="h2")],
+        system_message=SystemMessage(content="s" * 100))
+    captured = []
+    response = AIMessage(content="result")
+
+    async def handler(r):
+        captured.append(r)
+        return response
+
+    assert await mw.awrap_model_call(request, handler) is response
+    assert len(captured[0].messages) == 1
+    assert captured[0].system_message is request.system_message
+
+
+def test_archive_preserves_recent_parallel_tool_pair_and_roles(tmp_path):
+    mw = _make_middleware(file_store_path=str(tmp_path))
+    ai, tool = _responses_messages()
+    second = ToolMessage(content="ok", name="browser_tabs", tool_call_id="call_2", id="t2")
+    ai.tool_calls.append({"name": "browser_tabs", "args": {}, "id": "call_2", "type": "tool_call"})
+    messages = [HumanMessage(content="old", id="h0"), AIMessage(content="done", id="a0"),
+                HumanMessage(content="new", id="h1"), ai, tool, second]
+    result = mw._archive_old_rounds(messages)
+    assert [m.type for m in result] == ["human", "ai", "tool", "tool"]
+    assert result[1] is ai and result[2] is tool and result[3] is second
+    assert {call["id"] for call in ai.tool_calls} == {m.tool_call_id for m in result[2:]}
+
+
+# ---------------------------------------------------------------------------
 # 主入口
 # ---------------------------------------------------------------------------
 

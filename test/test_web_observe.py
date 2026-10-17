@@ -249,6 +249,31 @@ def test_normalize_evaluate_playwright_markdown_envelope_json_value():
     assert normalize_evaluate_result(raw) == 'saved\ndone'
 
 
+@pytest.mark.asyncio
+async def test_web_observe_text_budget_is_a_hard_limit(monkeypatch):
+    from tools.web_observe_tool import WebObserveTool
+    from unittest.mock import AsyncMock
+    monkeypatch.setattr('tools.web_observe_tool.find_evaluate_tool', lambda _: object())
+    monkeypatch.setattr('tools.web_observe_tool.observe_simplified', AsyncMock(return_value='x' * 9000))
+    result = await WebObserveTool(mcp_tools=[])._arun(text_only=True, max_chars=2000)
+    assert result['ok'] is True
+    assert result['truncated'] is True
+    assert len(result['content']) <= 2000
+    assert result['char_count'] == len(result['content'])
+
+
+@pytest.mark.asyncio
+async def test_web_observe_html_budget_is_a_hard_limit(monkeypatch):
+    from tools.web_observe_tool import WebObserveTool
+    from unittest.mock import AsyncMock
+    monkeypatch.setattr('tools.web_observe_tool.find_evaluate_tool', lambda _: object())
+    monkeypatch.setattr('tools.web_observe_tool.observe_simplified', AsyncMock(return_value='<div>' + 'x' * 9000 + '</div>'))
+    result = await WebObserveTool(mcp_tools=[])._arun(max_chars=2000)
+    assert result['ok'] is True
+    assert result['truncated'] is True
+    assert len(result['content']) <= 2000
+
+
 # ── 集成测试：需要真浏览器 ─────────────────────────────────────────
 
 

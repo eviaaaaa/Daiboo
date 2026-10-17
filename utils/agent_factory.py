@@ -27,11 +27,14 @@ from tools import (
     view_skill,
 )
 from tools.terminal_tools import terminal_read, terminal_write
+from tools.browser_runtime import make_browser_runtime_tools
 from utils.qwen_model import (
     create_openai_compatible_model,
     create_qwen_model,
     is_openai_compatible_configured,
 )
+from utils.skills import skills_summary
+from utils.browser_disclosure import BrowserDisclosureMiddleware
 
 if TYPE_CHECKING:
     from langgraph.graph.state import CompiledStateGraph
@@ -48,6 +51,7 @@ def get_agent_tools(mcp_tools: Any, screenshot_helper: Any = None) -> list[Any]:
         list_skills,                                                # Skills: list available
         view_skill,                                                 # Skills: load specific
         *mcp_tools,                                                  # MCP 浏览器工具
+        *make_browser_runtime_tools(mcp_tools),                     # 会话绑定的紧凑批次与能力披露
         CaptureElementContextTool(helper=screenshot_helper),         # 重写版
         VLAnalysisTool(),                                            # 保留
         WebObserveTool(mcp_tools=mcp_tools),                         # 基于 simphtml 的页面观察工具
@@ -83,8 +87,6 @@ async def create_browser_agent(
     # 则走 OpenAI 兼容接口，便于复用 Hermes/Gateway 的本地模型配置。
     if is_openai_compatible_configured():
         model = create_openai_compatible_model(
-            model_name=os.getenv("OPENAI_MODEL") or model_name,
-            temperature=0.0,
             request_timeout=5000,
         )
     else:
@@ -114,12 +116,13 @@ async def create_browser_agent(
 
     # 创建 Agent（最耗时的操作）
     browser_agent = agents.create_agent(
-        system_prompt=system_prompt.system_prompt,
+        system_prompt=system_prompt.system_prompt + "\n\nAvailable skill names and descriptions (load bodies only when relevant):\n" + skills_summary(),
         state_schema=MyState,
         checkpointer=_checkpointer,
         model=model,
         tools=tools,
         middleware=[
+            BrowserDisclosureMiddleware(),
             context_middleware,
             hitl_middleware,
             log_agent_start,

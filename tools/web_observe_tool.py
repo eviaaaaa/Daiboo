@@ -33,6 +33,7 @@ from tools._simphtml import (
 )
 
 logger = logging.getLogger(__name__)
+_TRUNCATED = "\n[TRUNCATED: request a smaller region or a larger max_chars]"
 
 
 class WebObserveToolInput(BaseModel):
@@ -53,7 +54,7 @@ class WebObserveToolInput(BaseModel):
         default=35000,
         ge=2000,
         le=200000,
-        description="输出字符上限，超出时通过 smart_truncate 递归裁切。",
+        description="输出字符硬上限；HTML 末尾必要时会截成片段并标注 TRUNCATED。",
     )
 
 
@@ -63,7 +64,7 @@ class WebObserveTool(BaseTool):
     与 browser_snapshot 的差别：
     - browser_snapshot 输出 accessibility tree，适合「已知要点击什么、需要 ref」
     - web_observe 输出简化 HTML/文本，适合「先看清页面再决定下一步」
-    - browser_snapshot 看不到 iframe 内容；web_observe 可以
+    - 同源 iframe/开放 Shadow DOM 可内联，不能绕过跨域同源策略
     """
 
     name: str = "web_observe"
@@ -104,6 +105,11 @@ class WebObserveTool(BaseTool):
         if len(rendered) > max_chars:
             soup = smart_truncate(soup, max_chars)
             rendered = str(soup)
+            truncated = True
+        # smart_truncate is best-effort (e.g. a single huge text node survives).
+        # A final hard cap keeps the public output contract true in every mode.
+        if len(rendered) > max_chars:
+            rendered = rendered[:max_chars - len(_TRUNCATED)] + _TRUNCATED
             truncated = True
         return rendered, truncated
 
@@ -151,11 +157,14 @@ class WebObserveTool(BaseTool):
 
         if text_only:
             cleaned = self._post_process_text(body)
+            truncated = len(cleaned) > max_chars
+            if truncated:
+                cleaned = cleaned[:max_chars - len(_TRUNCATED)] + _TRUNCATED
             return {
                 "ok": True,
                 "mode": "text",
                 "char_count": len(cleaned),
-                "truncated": False,
+                "truncated": truncated,
                 "content": cleaned,
             }
 
