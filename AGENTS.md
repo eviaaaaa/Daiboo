@@ -121,6 +121,15 @@
 - `database/indexes.py` 是幂等索引入口；当前只维护与生产 `chunk_level='child'` 查询谓词一致的部分 HNSW 索引。AgentTrace、Experience 和 parent 调试检索在当前数据量下不额外建索引；新增索引前必须先给出 SQL/调用与 `EXPLAIN` 证据。
 - `compose.redis.yml` 仅把 Redis 暴露到 `127.0.0.1:6380`，缓存使用 `allkeys-lru` 且不持久化。
 
+## 7.7 浏览器运行时与可选 Jev
+
+- `tools/browser_runtime.py` 提供固定 JSON 操作的 `browser_batch` 与完整 schema 披露；原生任意服务端代码默认不对主模型暴露。
+- `utils/typesafe_client.py` 是独立原生 TypeSafe `/v1/systemone` 客户端：noul/choice/score、严格输入/回答预算、不重试、不跨 provider 或协议回退。
+- `tools/jev_browser.py` 与固定服务端实现 `tools/_jev_runtime.js` 提供 `browser_jev_decide` 和闭集 `browser_jev_run`；只有显式启用且该 MCP 会话具有 gate/resources/backend 才注册。Jev 从既定授权候选中选择，不生成工具参数或赋予授权。
+- `utils/mcp_client.py` 的会话 gate 与 `resources` 管理浏览器串行边界和辅助客户端生命周期。推理期间还必须保留文档/元素身份、检测页面变化；gate 不能阻止外部浏览器修改。
+- `utils/browser_disclosure.py` 保持六个核心浏览器 schema；Jev 实际注册时额外常驻两个 helper，其他 schema 成功查询后按批次追加。Skills 目录按需正文加载，不再每任务强制 list_skills。
+- 新真实验收入口 `test/manual/jev_browser_smoke.py` 必须显式 `--live`；公开 demo 只操作隔离浏览器页面内存中的测试数据，不等价真实账户业务验证。阈值下交回与任务成功分别报告。
+
 ## 8. 项目安全 / 本地运行边界
 
 - Daiboo 默认保持本地-only；不要未经用户明确要求把服务暴露到公网。
