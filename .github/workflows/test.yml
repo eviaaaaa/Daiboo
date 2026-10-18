@@ -75,6 +75,7 @@ jobs:
       USER_DATA_DIR: /tmp/daiboo-browser-integration-profile
       BROWSER_HEADLESS: "true"
       RUN_BROWSER_INTEGRATION: "1"
+      DAIBOO_TEST_JEV_BROWSER_LIVE: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
@@ -106,3 +107,8 @@ jobs:
           test/test_web_observe.py::test_web_observe_integration_basic
       - name: Run isolated runtime and safety regressions
         run: uv run python test/manual/browser_runtime_smoke.py
+      - name: Run Jev browser safety (fake inference, no API key)
+        run: >-
+          uv run python -m pytest -q --tb=short
+          test/test_jev_browser.py test/test_jev_dispatch_safety.py
+          test/test_jev_request_safety.py

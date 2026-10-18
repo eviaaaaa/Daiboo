@@ -19,6 +19,7 @@ Daiboo（代步）通过 **@playwright/mcp** + LangChain/LangGraph 组合，实�
 - 模型推理编排：统一调度浏览器工具、视觉分析、终端工具与检索工具，支持多轮会话和可中断审批（HITL 中间件）。
 - 上下文管理：长上下文压缩（旧消息摘要 + 字符硬阈值双触发）、归档和重放辅助。
 - 浏览器动作追踪：对会改页面状态的 MCP 工具自动补充 DOM diff 与瞬时文本，减少额外 snapshot 验证轮次。
+- 可选 Jev 快速判断：独立 TypeSafe System One API 提供只读 noul/choice/score，以及受限候选动作循环；主聊天模型不变，默认关闭。
 - 检索与记忆：基于 PostgreSQL + PGVector 的文档检索与任务经验沉淀。
 
 ## 运行前准备
@@ -86,6 +87,7 @@ cp .env.example .env
 
 可选增强（不配置不影响运行）：
 
+- Jev：显式设置 `DAIBOO_JEV_ENABLED=true` 和服务端 `TYPESAFE_API_KEY`；`TYPESAFE_BASE_URL` 默认 `https://api.typesafe.ai/v1`，`TYPESAFE_MODEL` 默认 `jev-latest`，`TYPESAFE_TIMEOUT_SECONDS` 默认 10 秒、上限 60 秒。启用且会话具备安全 backend 时注册 `browser_jev_decide` / `browser_jev_run`，客户端随 MCP 会话关闭；未启用不会读取该密钥。`browser_runtime_info` 可确认实际注册及完整 schema，但 `configured=true` 不等于探测过端点。页面文本会发送给独立 TypeSafe 服务，使用其独立额度，不走 `OPENAI_*` / NewAPI / CPA 的订阅路径；不要上传秘密或把启发式脱敏当 DLP。完整用法与边界见 [浏览器运行时](docs/browser-runtime.md#可选-typesafe-jev)。
 - API 安全：`DAIBOO_API_KEY`（设置即启用 X-API-Key 认证）、`RATE_LIMIT`（默认 60 req/60s，设 0 关闭）。Web 前端可从“安全”面板输入 Key，只写入当前标签页的 `sessionStorage`。
 - Redis 缓存：`REDIS_URL`；可按需调整 `REDIS_RAG_SEARCH_TTL`（默认 300 秒）、`REDIS_RAG_SUMMARY_TTL`（默认 60 秒）、`REDIS_EMBEDDING_TTL`（默认 86400 秒）。Redis 故障会自动按 cache miss 回退，不会阻断请求。
 - 跨域：默认关闭 CORS；确需跨域时用 `CORS_ALLOW_ORIGINS=https://a.example,https://b.example` 显式配置来源。

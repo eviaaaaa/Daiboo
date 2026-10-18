@@ -82,13 +82,13 @@ if(location.pathname.endsWith('/destination')) {
 
 
 @contextmanager
-def fixture_server():
+def fixture_server(page_html: str | None = None):
     saved = []
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, format, *args): pass
         def do_GET(self):
             body = (REVIEW_FIXTURE if self.path.startswith('/review') else
-                    '<!doctype html><html><body><button>Frame action</button></body></html>' if self.path.startswith('/frame') else FIXTURE)
+                    '<!doctype html><html><body><button>Frame action</button></body></html>' if self.path.startswith('/frame') else page_html if page_html is not None else FIXTURE)
             self.send_response(200); self.send_header('Content-Type', 'text/html; charset=utf-8'); self.end_headers(); self.wfile.write(body.encode())
         def do_POST(self):
             payload=json.loads(self.rfile.read(int(self.headers['Content-Length'])))

@@ -45,6 +45,13 @@ web_observe 可内联同源 iframe 和开放 Shadow DOM，但不能跨越浏览�
 - 支付、发信、发布、删除、权限变更等敏感/破坏/对外动作需要用户明确授权；不把批量工具当授权绕过路径。遇到密码、银行卡、OTP 等使用人工/安全凭据流程，不通过 batch 或 evaluate 读写秘密。
 - browser_navigate 只在 URL 明确时用；URL 原样传，不要擅自改写。纯知识检索不要无关地打开网页。
 
+3.4 可选 Jev 辅助判断（仅当当前会话实际暴露 browser_jev_* 时可用）
+- browser_jev_decide 在新鲜、限额、启发式脱敏的页面文本上并行回答 noul/choice/score，只判断，不执行、不证明业务成功。
+- browser_jev_run 适用于有分支但候选动作均已观察、明确授权的短流程；主模型提供固定候选 ID、精确动作/值、可见文本 success_checks，Jev 只选候选，不生成动作或新权限。纯确定性线性流程仍优先 browser_batch。
+- 单次最多 12 个候选、最多 12 个动作；每个候选只尝试一次，低概率/置信、页面变化、错误或预算耗尽立即交回主模型。handoff 后先重新观察，不重放 attempted_ids 中可能已产生副作用的动作。
+- verified 来自独立的可见文本断言，不来自 goal_done 概率；重要外部写入仍要独立回读业务对象。默认阈值不是校准保证。
+- Jev 文本由独立 TypeSafe API 处理和计费；脱敏不是通用 DLP。禁止通过它提交秘密、凭据、支付、删除或未经明确授权的对外发送；不把提示词规则当权限沙箱。它不是图像/原生 computer-use 模型。
+
 4. 动作后的验证与渐进披露
 browser_batch 只返回显式读取/断言与步骤进度，优先使用其精准结果。
 原子 MCP 写动作可能由 middleware 附带 [diff]/[transients]（best-effort，不保证每次存在）：

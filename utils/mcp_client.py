@@ -10,7 +10,7 @@ import os
 import shutil
 
 from loguru import logger
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from contextvars import ContextVar
 from functools import wraps
 
@@ -94,6 +94,7 @@ class MCPToolList(list):
 
     def __init__(self, tools, *, snapshot_mode: str):
         self.session_gate = BrowserSessionGate()
+        self.resources = AsyncExitStack()
         self.all_tools = {tool.name: self.session_gate.wrap_tool(tool) for tool in tools}
         self.snapshot_mode = snapshot_mode
         expose_code = _unsafe_code_enabled()
@@ -154,5 +155,9 @@ async def create_persistent_mcp_session(cdp_endpoint: str | None = None):
         await session.initialize()
         tools = MCPToolList(await load_mcp_tools(session), snapshot_mode=_snapshot_mode())
         logger.info("MCP 持久会话已建立，共 {} 个公开工具，snapshot={}", len(tools), tools.snapshot_mode)
-        yield tools
+        try:
+            yield tools
+        finally:
+            # Auxiliary clients belong to this session, not a global singleton.
+            await tools.resources.aclose()
     logger.info("MCP 持久会话已关闭")

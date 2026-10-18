@@ -19,6 +19,7 @@ from langchain_core.messages import AIMessage, ToolMessage
 CORE_BROWSER_TOOLS = frozenset({
     "browser_navigate", "browser_snapshot", "browser_tabs", "browser_batch",
     "browser_runtime_info", "web_observe",
+    "browser_jev_decide", "browser_jev_run",  # Only present when explicitly enabled.
 })
 
 

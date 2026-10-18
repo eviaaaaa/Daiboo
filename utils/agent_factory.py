@@ -28,6 +28,7 @@ from tools import (
 )
 from tools.terminal_tools import terminal_read, terminal_write
 from tools.browser_runtime import make_browser_runtime_tools
+from tools.jev_browser import make_jev_browser_tools
 from utils.qwen_model import (
     create_openai_compatible_model,
     create_qwen_model,
@@ -47,11 +48,13 @@ def get_agent_tools(mcp_tools: Any, screenshot_helper: Any = None) -> list[Any]:
         mcp_tools: MCP 浏览器工具列表
         screenshot_helper: ScreenshotHelper 实例，供 CaptureElementContextTool 使用
     """
+    jev_tools = make_jev_browser_tools(mcp_tools)
     return [
         list_skills,                                                # Skills: list available
         view_skill,                                                 # Skills: load specific
         *mcp_tools,                                                  # MCP 浏览器工具
-        *make_browser_runtime_tools(mcp_tools),                     # 会话绑定的紧凑批次与能力披露
+        *make_browser_runtime_tools(mcp_tools, additional_tools=jev_tools),
+        *jev_tools,                                                # 可选 Jev 判断/有界候选执行
         CaptureElementContextTool(helper=screenshot_helper),         # 重写版
         VLAnalysisTool(),                                            # 保留
         WebObserveTool(mcp_tools=mcp_tools),                         # 基于 simphtml 的页面观察工具
