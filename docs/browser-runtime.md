@@ -40,12 +40,13 @@
 默认关闭。启用时在服务端设置 `DAIBOO_JEV_ENABLED=true` 和 `TYPESAFE_API_KEY`；可选 `TYPESAFE_BASE_URL=https://api.typesafe.ai/v1`、`TYPESAFE_MODEL=jev-latest`、`TYPESAFE_TIMEOUT_SECONDS=10`（有限正数，最大 60 秒）。不自动读取其他 provider 的凭据、不通过 OpenAI Responses/NewAPI/CPA 模拟此协议、不修改主聊天模型。`jev-latest` 是别名，记录实际 response.model，不根据文档版本号推断本次调用版本。
 
 - `browser_jev_decide(questions, max_chars)`：每次在新鲜页面文本上批量回答最多 12 个独立 `noul`（是的概率）、`choice`（候选与分布）、`score`（有序等级的期望分）问题；只读，始终 `executed=false`、`verified=false`。
-- `browser_jev_run(goal, candidates, success_checks, ...)`：主模型提供至多 12 个已观察、明确授权的候选 ID 与精确 `fill/click/select/check/press` 参数。Jev 仅选择 ID，代码执行；默认最多 6 个动作、硬上限 12，每个候选最多尝试一次。click/check 不接受无效 value 来伪造新候选。概率 0.8、confidence 0.6 是保守工程默认值，不是目标领域校准结果。
-- 模型的 `goal_done` 不证明成功；`verified` 依赖独立可见文本断言，隐藏文本不算。低置信度、错误、页面变化或预算耗尽返回 `handoff`，主模型重新观察并决定未完成部分；不得自动重放 `attempted_ids`。提交可能已经产生副作用，取消不等于回滚。
+- `browser_jev_run(goal, candidates, success_checks, ...)`：主模型提供至多 12 个已观察、明确授权的候选 ID 与精确 `fill/click/select/check/press` 参数。Jev 仅选择 ID，代码执行；默认最多 6 个动作、硬上限 12，每个候选最多尝试一次。click/check 不接受无效 value 来伪造新候选。
+- **选择策略为 argmax**：直接选择有效概率分布的最高项，不设概率或 confidence 门槛；已移除 `min_probability` / `min_confidence` 参数。概率、confidence、`goal_done` 保留为观测数据，不作为额外拦截或成功证明。最高项若为 `handoff` / `observe_again`，仍停止执行并交回。
+- `verified` 依赖独立可见文本断言，隐藏文本不算。错误、页面变化或预算耗尽仍返回 `handoff`，主模型重新观察并决定未完成部分；不得自动重放 `attempted_ids`。提交可能已经产生副作用，取消不等于回滚。选择策略改变不改变授权、安全、freshness 或业务验证边界。
 - 文本观察默认 8,000 字符、可配 2,000–12,000；请求与回答还有整体 JSON/字节/深度预算。整个页面变化会保守停止，不局限于候选元素。仅支持当前主文档中的普通元素，不支持 iframe/Shadow DOM 候选、截图/图像或原生 computer-use。
 - 每个 MCP 会话共享一个懒加载 HTTP 连接池，随会话 `resources` 关闭。单次请求有总超时，禁止自动重试、重定向、跨模型/provider fallback、longcontext 或资产上传；错误只返回固定分类，不回传 raw HTTP/Playwright 正文。
 - 原生动作在 actionability checkpoint 复核；若需要第二次等待重试，保守交回而不跨越等待继续点击。取消已提交 RPC 时先等原生请求结束/超时，再清理和释放会话门。checkpoint 与输入 dispatch 不是原子事务，页面在最后检查后、输入事件处理期间仍能改变语义；不用于敏感操作，也不承诺回滚或全面恶意页面隔离。
-- 实际服务可能分别量化 Score 与概率，观测到 `score=0.19`、分布加权值 `0.18`。客户端仅允许 0.01 加浮点误差的差异，原样保留两者；概率边界、分布和动作阈值不因此放宽。
+- 实际服务可能分别量化 Score 与概率，观测到 `score=0.19`、分布加权值 `0.18`。客户端仅允许 0.01 加浮点误差的差异，原样保留两者；概率边界、分布和授权边界不因此放宽。
 - 两个 helper 只有显式启用、配置有效且会话具备 gate/resources/固定 backend 时才注册并常驻披露。`browser_runtime_info.jev.configured` 是注册状态，`endpoint_support=not_probed` 不代表做过网络验收。
 
 **数据与费用**：观察到的限额页面文本会发往独立 TypeSafe 服务，消耗 TypeSafe 自身额度，不是主模型的 Pro/Codex 订阅额度。启发式敏感控制脱敏不是通用 DLP；正文中的秘密、私人信息不能保证全部识别。不要用此路径处理凭据、支付、删除或未经批准的外发，不能将固定候选工具说成权限沙箱。
@@ -81,14 +82,14 @@ uv run python test/manual/openai_browser_smoke.py --graph --report browser-accep
 
 同日真实模型验收使用指定的 `https://api.evilhero.me/v1` / `gpt-6.1-sol`，Responses SSE 完成图像识读、强制函数调用、本地工具执行与 call_id 回放；模型还操作了隔离表单并保存 `Model Alice / pro`，由服务端记录和独立 Playwright 读取确认。该小样本有 returned cache_read usage，不据此承诺固定缓存收益。原生 computer actions[]、tool_search、WebMCP 及跨域框架页面未因此被证明支持；这批历史 OpenAI 验收也不代替独立 TypeSafe 验收。
 
-### Jev 实际验收结果与限制
+### Jev 首次接入验收（历史阈值策略）
 
 - 完整测试：**480 passed、0 skipped**，包括真实隔离 Chromium/MCP 安全回归与本地 HTTP 契约；测试使用假推理，不代表供应商模型准确率。
 - 真实 TypeSafe 返回 `jev-1.13.0`。真实 evilhero 主模型通过产品 factory/middleware 调用 Jev；Jev 完成姓名和套餐，保存阶段因置信不足交回。主模型重新观察、仅补做剩余保存，服务端记录与独立 Playwright 确认 `Saved Jev Alice pro`；图流程单次 38.105 秒，包含主模型与经验总结，不是 Jev 纯推理时延。
 - 公开 [TodoMVC React](https://todomvc.com/examples/react/dist/) 的 3 轮有界工具任务：**0/3 独立完成、3/3 安全交回、0 次动作**，首选概率均 0.77，低于保留的默认阈值 0.8。交回耗时中位数 2.415 秒，不是成功任务耗时或提速倍数。
 - 当前公开 React demo 数据只在页面内存，实查 localStorage/sessionStorage 均为空；oracle 直接读取真实 checkbox/label，不虚称刷新持久化，未操作真实账户。
 
-当前交付是**可选的原生辅助判断/保守候选执行能力**，不是已证明普适提速的外部业务自主执行器。保持默认关闭，不为演示降低阈值；领域校准及与主模型基线配对测速仍未完成。
+以上 0/3 结果属于旧的阈值策略；当前已按用户要求切换为最高概率选择，旧结果不得当作新策略测试结果。功能仍为可选的原生辅助判断/受限候选执行，不代表已证明普适业务提速；启用开关和其他安全边界没有变化。
 
 ## 第一方资料
 

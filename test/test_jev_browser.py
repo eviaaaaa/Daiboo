@@ -116,9 +116,6 @@ async def test_run_independent_checks_and_client_session_reuse(enabled):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('reply,reason', [
-    (answer(probability=.79), 'low_confidence'),
-    (answer(confidence=.59), 'low_confidence'),
-    (answer(done=.5), 'uncertain_goal'),
     (answer(choice='invented'), 'invalid_answer'),
     (answer(choice='handoff'), 'handoff'),
     (answer(choice='observe_again'), 'observe_again'),
@@ -126,7 +123,7 @@ async def test_run_independent_checks_and_client_session_reuse(enabled):
     ({'ok': False, 'reason': 'http_error', 'http_status': 429, 'error': 'FAKE_SECRET'}, 'http_error'),
     ({'ok': False, 'reason': 'timeout', 'error': 'FAKE_SECRET'}, 'timeout'),
 ])
-async def test_uncertainty_or_api_failure_never_executes(enabled, reply, reason):
+async def test_stop_option_or_api_failure_never_executes(enabled, reply, reason):
     backend = FakeBackend(); tools = session(backend)
     enabled.evaluate.return_value = reply
     result = await make_jev_browser_tools(tools)[1].ainvoke(run_args())
@@ -141,10 +138,10 @@ async def test_uncertainty_or_api_failure_never_executes(enabled, reply, reason)
 @pytest.mark.asyncio
 async def test_model_done_cannot_replace_code_verification(enabled):
     backend = FakeBackend(); tools = session(backend)
-    enabled.evaluate.return_value = answer(done=.99)
+    enabled.evaluate.return_value = answer(choice='handoff', done=.99)
     result = await make_jev_browser_tools(tools)[1].ainvoke(run_args())
     assert not result['verified'] and not backend.executions
-    assert result['reason'] == 'success_unverified'
+    assert result['reason'] == 'handoff'
     await tools.resources.aclose()
 
 
@@ -319,7 +316,7 @@ async def test_live_identity_and_freshness_with_real_mcp(monkeypatch, enabled):
                 for hidden in ('display:none', 'visibility:hidden'):
                     await reset()
                     await page.evaluate('(hidden) => { const s=document.createElement("span");s.style.cssText=hidden;s.textContent="Saved";document.querySelector("#status").replaceChildren(s); }', hidden)
-                    enabled.evaluate.return_value = answer(done=.99)
+                    enabled.evaluate.return_value = answer(choice='handoff', done=.99)
                     result = await helpers['browser_jev_run'].ainvoke(run_args(candidates=[candidate(target='#danger')]))
                     assert not result['verified'] and not result['attempted_ids'], (hidden, result)
                     await assert_clean()

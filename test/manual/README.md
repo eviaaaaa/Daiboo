@@ -27,7 +27,7 @@ uv run python test/manual/epic_login_manual.py
 
 真实模型通过不代表付款、登录、验证码或跨域框架页面已测试；本地确定性 embedding 也不证明语义检索质量。完整边界见 `docs/browser-runtime.md`。
 
-- `jev_browser_smoke.py`：显式 `--live` 才调用独立 TypeSafe 服务。需 `DAIBOO_JEV_ENABLED=true`、`TYPESAFE_API_KEY`；默认验证原生 noul/choice/score 与隔离表单。`--graph` 使用实际主模型 factory/middleware（额外需要 OpenAI 环境配置，包含 handoff 后只完成剩余步骤）；`--public --skip-local --trials 3` 单独测试公开 TodoMVC React，由独立 Playwright DOM 核对结果。该 demo 数据只在页面内存，不能用刷新验证持久化。耗时是工具循环端到端时间，没有整 agent 提速基线。未达到独立成功条件时脚本返回非零；目前默认阈值下公开任务实测 0/3 完成、全部交回，不隐藏失败或降低阈值。
+- `jev_browser_smoke.py`：显式 `--live` 才调用独立 TypeSafe 服务。需 `DAIBOO_JEV_ENABLED=true`、`TYPESAFE_API_KEY`；默认验证原生 noul/choice/score 与隔离表单。`--graph` 使用实际主模型 factory/middleware（额外需要 OpenAI 环境配置，包含 handoff 后只完成剩余步骤）；`--public --skip-local --trials 3` 单独测试公开 TodoMVC React，由独立 Playwright DOM 核对结果。该 demo 数据只在页面内存，不能用刷新验证持久化。当前按有效分布最高项选择，不再设概率/confidence 门槛；最高项若为 handoff/observe_again 仍交回。未达到独立成功条件时脚本返回非零，保留所有失败。耗时是工具循环端到端时间，没有整 agent 提速基线；文档中的旧阈值 0/3 是历史结果，不代表当前策略。
 
   ```bash
   # 需先在服务端配置授权凭据；会产生真实 TypeSafe / 主模型请求。

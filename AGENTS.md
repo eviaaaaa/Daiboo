@@ -128,7 +128,8 @@
 - `tools/jev_browser.py` 与固定服务端实现 `tools/_jev_runtime.js` 提供 `browser_jev_decide` 和闭集 `browser_jev_run`；只有显式启用且该 MCP 会话具有 gate/resources/backend 才注册。Jev 从既定授权候选中选择，不生成工具参数或赋予授权。
 - `utils/mcp_client.py` 的会话 gate 与 `resources` 管理浏览器串行边界和辅助客户端生命周期。推理期间还必须保留文档/元素身份、检测页面变化；gate 不能阻止外部浏览器修改。
 - `utils/browser_disclosure.py` 保持六个核心浏览器 schema；Jev 实际注册时额外常驻两个 helper，其他 schema 成功查询后按批次追加。Skills 目录按需正文加载，不再每任务强制 list_skills。
-- 新真实验收入口 `test/manual/jev_browser_smoke.py` 必须显式 `--live`；公开 demo 只操作隔离浏览器页面内存中的测试数据，不等价真实账户业务验证。阈值下交回与任务成功分别报告。
+- Jev 动作策略直接选择有效分布最高项，不设置概率/confidence 门槛；最高项为 handoff/observe_again 时仍交回。保留页面身份、安全边界、动作预算、不重放与独立成功验证。
+- 新真实验收入口 `test/manual/jev_browser_smoke.py` 必须显式 `--live`；公开 demo 只操作隔离浏览器页面内存中的测试数据，不等价真实账户业务验证。返回交回信号与任务实际完成分别报告。
 
 ## 8. 项目安全 / 本地运行边界
 

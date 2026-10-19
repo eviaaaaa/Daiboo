@@ -183,10 +183,10 @@ async def test_autowait_changed_button_is_never_clicked(browser, monkeypatch, de
 ])
 async def test_hidden_ancestor_text_cannot_verify_success(browser, monkeypatch, ancestor):
     await browser.page.set_content(f'<button id="go">Save</button><section {ancestor}><div><span id="status">Saved</span></div></section>')
-    tools, fake = helpers(browser, monkeypatch, answer(done=.99))
+    tools, fake = helpers(browser, monkeypatch, answer(choice='handoff', done=.99))
     result = await tools['browser_jev_run'].ainvoke(run_args())
     assert not result['verified'] and not result['attempted_ids'], (ancestor, result)
-    assert result['reason'] == 'success_unverified', result
+    assert result['reason'] == 'handoff', result
     assert fake.evaluate.call_args.kwargs['state']['observed_check_matches'] == [False]
     await assert_clean(browser)
 

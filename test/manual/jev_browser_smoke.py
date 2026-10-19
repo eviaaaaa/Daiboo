@@ -84,7 +84,7 @@ async def local_trial(endpoint, base, saved, graph):
             from utils.agent_factory import create_browser_agent
             agent = await create_browser_agent(native)
             prompt = ('This is an authorized isolated local-only test. Use browser_jev_run exactly once with these already inspected selectors and exact arguments: '
-                      + json.dumps(local_args()) + '. Do not lower thresholds or replay attempted_ids. If Jev hands off, freshly observe and complete only the remaining authorized steps using browser_batch, then read #status. After success report the actually observed result briefly. No credentials, external sites or terminal actions.')
+                      + json.dumps(local_args()) + '. Jev uses the highest-probability option; do not invent confidence thresholds or replay attempted_ids. If Jev hands off, freshly observe and complete only the remaining authorized steps using browser_batch, then read #status. After success report the actually observed result briefly. No credentials, external sites or terminal actions.')
             state = await agent.ainvoke({'messages': [HumanMessage(content=prompt)]},
                 {'configurable': {'thread_id': 'jev-smoke-' + uuid.uuid4().hex}, 'recursion_limit': 40})
             messages = state['messages']
