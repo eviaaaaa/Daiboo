@@ -10,7 +10,9 @@ from langchain_core.messages import HumanMessage
 from entity.experience import Experience
 from database import engine
 from utils import qwen_embeddings, create_qwen_model
-from utils.qwen_model import normalize_content
+from utils.qwen_model import (
+    normalize_content, is_openai_compatible_configured, create_openai_compatible_model,
+)
 from prompt.experience_prompt import EXPERIENCE_SUMMARY_PROMPT, format_trace_for_summary
 
 
@@ -20,7 +22,10 @@ class ExperienceSummarizer:
     """
     
     def __init__(self):
-        self.llm = create_qwen_model(temperature=0.1)
+        if is_openai_compatible_configured():
+            self.llm = create_openai_compatible_model(request_timeout=120)
+        else:
+            self.llm = create_qwen_model(temperature=0.1)
         self.embeddings = qwen_embeddings
     
     async def summarize_from_state(self, state: dict) -> Optional[int]:
@@ -57,11 +62,11 @@ class ExperienceSummarizer:
             user_query = ""
             for msg in reversed(messages):
                 if msg.type == 'human':
-                    user_query = msg.content
+                    user_query = normalize_content(msg.content)
                     break
             
             if not user_query and len(messages) > 1:
-                user_query = messages[1].content if len(messages) > 1 else messages[0].content
+                user_query = normalize_content(messages[1].content if len(messages) > 1 else messages[0].content)
             
             # 序列化 full_trace 并提取 tool_names
             serialized_trace = []
@@ -70,6 +75,7 @@ class ExperienceSummarizer:
             for msg in messages:
                 msg_type = msg.type
                 msg_data = {
+                    **msg.model_dump(),
                     "role": msg_type,
                     "content": msg.content,
                     "additional_kwargs": msg.additional_kwargs
@@ -83,10 +89,15 @@ class ExperienceSummarizer:
                 serialized_trace.append(msg_data)
             
             # 提取 final_answer
-            final_answer = messages[-1].content if messages and messages[-1].type == 'ai' else ""
+            final_answer = normalize_content(messages[-1].content) if messages and messages[-1].type == 'ai' else ""
             
             # 4. 格式化执行记录
-            trace_summary = format_trace_for_summary(serialized_trace)
+            # The formatter is a text-only consumer. Project a copy, never
+            # overwrite native full_trace blocks needed for audit/replay.
+            trace_summary = format_trace_for_summary([
+                {**item, "content": normalize_content(item["content"])}
+                for item in serialized_trace
+            ])
             print(f"📝 格式化执行记录摘要 (Session: {session_id[:8]}..., Turn: {turn_number})")
             # 5. 构建 Prompt
             prompt = EXPERIENCE_SUMMARY_PROMPT.format(

@@ -13,7 +13,17 @@ function createEnhancedDOMCopy() {
     }  
     if (sourceNode.nodeType === 3) return sourceNode.cloneNode(false);  
     const clone = sourceNode.cloneNode(false);
-    if ((sourceNode.tagName === 'INPUT' || sourceNode.tagName === 'TEXTAREA') && sourceNode.value) clone.setAttribute('value', sourceNode.value);
+    const isField = sourceNode.tagName === 'INPUT' || sourceNode.tagName === 'TEXTAREA';
+    const fieldType = (sourceNode.getAttribute('type') || '').toLowerCase();
+    const autocomplete = (sourceNode.getAttribute('autocomplete') || '').toLowerCase();
+    const fieldName = ((sourceNode.getAttribute('name') || '') + ' ' + (sourceNode.id || '')).toLowerCase();
+    const isSensitive = isField && (fieldType === 'password'
+      || /(^|\s)(cc-\S+|one-time-code|current-password|new-password)(\s|$)/.test(autocomplete)
+      || /password|passwd|card.?number|credit.?card|cvc|cvv|otp|verification.?code|api.?key|secret/.test(fieldName));
+    if (isSensitive) {
+      clone.removeAttribute('value');
+      clone.setAttribute('data-sensitive', 'redacted');
+    } else if (isField && sourceNode.value) clone.setAttribute('value', sourceNode.value);
     if (sourceNode.tagName === 'INPUT' && (sourceNode.type === 'radio' || sourceNode.type === 'checkbox') && sourceNode.checked) clone.setAttribute('checked', '');
     else if (sourceNode.tagName === 'SELECT' && sourceNode.value) clone.setAttribute('data-selected', sourceNode.value);  
     try { if (sourceNode.matches && sourceNode.matches(':-webkit-autofill')) { clone.setAttribute('data-autofilled', 'true'); if (!sourceNode.value) clone.setAttribute('value', '⚠️受保护-读tmwebdriver_sop的autofill章节提取'); } } catch(e) {}
@@ -24,7 +34,7 @@ function createEnhancedDOMCopy() {
     const isSmallDropdown = _ddItems > 0 && _ddItems <= 7 && sourceNode.textContent.length < 500;  
 
     const childNodes = [];  
-    for (const child of sourceNode.childNodes) {  
+    for (const child of (isSensitive ? [] : sourceNode.childNodes)) {
       const childClone = cloneNode(child, keep || isSmallDropdown);  
       if (childClone) childNodes.push(childClone);  
     }  

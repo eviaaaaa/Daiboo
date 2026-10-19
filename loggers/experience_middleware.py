@@ -48,6 +48,8 @@ async def log_experience(state: types.StateT, runtime) -> None:
     
     # 添加完成回调来追踪任务状态
     def _on_complete(future):
+        if future.cancelled():
+            return
         try:
             future.result()  # 获取结果，如果有异常会在这里抛出
         except Exception:

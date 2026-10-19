@@ -69,8 +69,7 @@ def make_diff_middleware(mcp_tools: list[Any]) -> Callable:
             eval_tool_holder["eval_tool"] = find_evaluate_tool(mcp_tools)
         return eval_tool_holder["eval_tool"]
 
-    @wrap_tool_call
-    async def diff_middleware(request, handler):
+    async def _run_diff(request, handler):
         tool_name = getattr(request.tool, "name", "")
         if tool_name not in STATE_CHANGING_TOOLS:
             return await handler(request)
@@ -109,6 +108,16 @@ def make_diff_middleware(mcp_tools: list[Any]) -> Callable:
             after_html=after_html,
             transients=transients,
         )
+
+    @wrap_tool_call
+    async def diff_middleware(request, handler):
+        gate = getattr(mcp_tools, 'session_gate', None)
+        if gate is not None and getattr(request.tool, 'name', '') in STATE_CHANGING_TOOLS:
+            # Include before/action/after in the SAME operation. Nested eval
+            # and action StructuredTools inherit the nonce, not a second lock.
+            async with gate.hold():
+                return await _run_diff(request, handler)
+        return await _run_diff(request, handler)
 
     return diff_middleware
 

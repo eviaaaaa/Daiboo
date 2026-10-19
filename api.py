@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from contextlib import asynccontextmanager
 from pathlib import Path
 from langchain.messages import HumanMessage, AIMessage
+from langchain_core.messages import BaseMessage
 from langgraph.types import Command
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from typing import TYPE_CHECKING, Any, AsyncIterator, Optional
@@ -318,6 +319,26 @@ async def health_check() -> dict[str, Any]:
     }
 
 
+def _display_stream_value(value: Any) -> Any:
+    """Project native messages for NDJSON logs without repr-leaking payloads.
+
+    Checkpoints retain original messages. Artifacts, encrypted reasoning and
+    provider metadata belong in native archives, not user-visible tool logs.
+    """
+    if isinstance(value, BaseMessage):
+        result = {"role": value.type, "content": normalize_content(value.content)}
+        for key in ("id", "name", "tool_call_id", "status", "tool_calls"):
+            item = getattr(value, key, None)
+            if item is not None:
+                result[key] = item
+        return result
+    if isinstance(value, dict):
+        return {key: _display_stream_value(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_display_stream_value(item) for item in value]
+    return value
+
+
 @app.post(
     "/chat",
     summary="发送对话消息",
@@ -404,18 +425,22 @@ async def chat(request: ChatRequest) -> StreamingResponse:
 
                 # 分析数据块以区分日志和实际消息
                 is_message = False
-                content = pprint.pformat(chunk)
+                content = pprint.pformat(_display_stream_value(chunk))
 
                 # 检查是否是带有 AIMessage 的模型响应
                 if "model" in chunk and "messages" in chunk["model"]:
                     messages = chunk["model"]["messages"]
                     for msg in messages:
                         if isinstance(msg, AIMessage):
+                            # A reasoning/tool-call-only update is still handled;
+                            # do not fall back to its repr or persist empty text.
+                            is_message = True
                             message_content = normalize_content(msg.content)
+                            if not message_content:
+                                continue
                             data = json.dumps({"type": "message", "content": message_content}, ensure_ascii=False)
                             yield f"{data}\n"
                             agent_messages.append(message_content)
-                            is_message = True
 
                 if not is_message:
                     log_type = "log"

@@ -1,6 +1,8 @@
 import asyncio
 import time
 import os
+import json
+import uuid
 from typing import Any
 from langchain.agents.middleware import after_agent, wrap_tool_call, types, before_agent
 from sqlalchemy.orm import Session
@@ -37,12 +39,17 @@ async def log_agent_response(state:types.StateT, runtime) -> None:
         if not session_id and state.get('messages'):
             session_id = state['messages'][0].id
         session_dir = short_session_fragment(str(session_id) if session_id else None)
-        file_name = build_timestamped_filename("final_response", str(session_id) if session_id else None)
+        file_name = build_timestamped_filename(f"final_response_{uuid.uuid4().hex[:12]}", str(session_id) if session_id else None)
         path = os.path.join(".", "screen", session_dir, file_name)
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path,"w",encoding="utf-8") as f:
             for message in state['messages']:
-                f.write(f"{message}\n")
+                f.write(f"{message.type}: {normalize_content(message.content)}\n")
+        # Text logs are a display projection, not a replay archive. Keep typed
+        # Responses blocks and all message metadata in a private JSON sidecar.
+        payload_path = os.path.splitext(path)[0] + ".json"
+        with open(payload_path, "x", encoding="utf-8", opener=lambda p, flags: os.open(p, flags, 0o600)) as f:
+            json.dump([message.model_dump() for message in state['messages']], f, ensure_ascii=False, default=str)
         print("Final response logged.")
 
 @after_agent(can_jump_to="end")
@@ -84,6 +91,9 @@ async def log_response_to_database(state:types.StateT, runtime) -> None:
     for msg in messages:
         msg_type = msg.type
         msg_data = {
+            # DB is a sanitized audit projection; the sidecar is the replay
+            # archive. Keep call/result linkage, status and provider metadata.
+            **msg.model_dump(exclude={"content"}),
             "role": msg_type,
             "content": normalize_content(msg.content),
             "additional_kwargs": msg.additional_kwargs
@@ -95,7 +105,7 @@ async def log_response_to_database(state:types.StateT, runtime) -> None:
                 tool_names_set.add(tool_call['name'])
         
         if msg_type == 'ai' and hasattr(msg, 'response_metadata'):
-            usage = msg.response_metadata.get('token_usage', {})
+            usage = getattr(msg, 'usage_metadata', None) or msg.response_metadata.get('token_usage', {})
             total_input_tokens += usage.get('input_tokens', 0)
             total_output_tokens += usage.get('output_tokens', 0)
 
