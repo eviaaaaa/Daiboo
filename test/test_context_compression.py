@@ -8,7 +8,9 @@
 - 总上下文 token 阈值触发归档
 """
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from threading import Barrier
 
 # 添加项目根目录到 Python 路径
 project_root = Path(__file__).parent.parent
@@ -224,6 +226,49 @@ def test_toolmsg_offload_preserves_name():
     assert t1.name == "big_tool", "卸载后 name 应保留"
 
     print("PASS: test_toolmsg_offload_preserves_name")
+
+
+def test_concurrent_sessions_keep_archive_paths_isolated(tmp_path: Path):
+    """同一中间件处理并发本地会话时，归档文件必须保留各自 thread_id。"""
+    barrier = Barrier(2)
+
+    class CoordinatedMiddleware(ContextManagerMiddleware):
+        def _save_to_file(self, content: str, prefix: str) -> str:
+            barrier.wait(timeout=5)
+            return super()._save_to_file(content, prefix)
+
+    mw = CoordinatedMiddleware(
+        model=_ModelWithContext(max_input_tokens=100),
+        file_store_path=str(tmp_path),
+        max_token_ratio=1.0,
+        single_msg_ratio=0.5,
+        token_counter=_count_content_chars,
+    )
+
+    def run(thread_id: str, marker: str) -> None:
+        mw.before_model(
+            {
+                "messages": [HumanMessage(content=marker * 2000, id=f"msg-{thread_id}")],
+                "configurable": {"thread_id": thread_id},
+            },
+            None,
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures = [
+            pool.submit(run, "session-A", "A"),
+            pool.submit(run, "session-B", "B"),
+        ]
+        for future in futures:
+            future.result()
+
+    # Each readable archive also retains main's private native replay sidecar.
+    archive_paths = sorted(tmp_path.glob("*.txt"))
+    assert all(path.with_suffix(".json").is_file() for path in archive_paths)
+    archive_names = [path.name for path in archive_paths]
+    assert len(archive_names) == 2
+    assert any("session-A" in name for name in archive_names)
+    assert any("session-B" in name for name in archive_names)
 
 
 # ---------------------------------------------------------------------------

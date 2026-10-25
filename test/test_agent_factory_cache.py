@@ -54,7 +54,7 @@ async def test_openai_agent_does_not_forward_qwen_default_or_temperature(monkeyp
     monkeypatch.delenv("OPENAI_MODEL", raising=False)
     monkeypatch.setattr(agent_factory.agents, "create_agent", lambda **kwargs: FakeAgent())
     monkeypatch.setattr(agent_factory, "get_agent_tools", lambda tools, helper: list(tools))
-    monkeypatch.setattr(agent_factory, "is_openai_compatible_configured", lambda: True)
+    monkeypatch.setattr(agent_factory, "is_openai_compatible_configured", lambda prefix="OPENAI": prefix == "OPENAI")
     monkeypatch.setattr(agent_factory, "create_openai_compatible_model", create_model)
     monkeypatch.setattr(agent_factory, "ContextManagerMiddleware", lambda model: object())
     monkeypatch.setattr(agent_factory, "HumanInTheLoopMiddleware", lambda **kwargs: object())
@@ -83,3 +83,38 @@ async def test_factory_wires_session_bound_batch_without_exposing_code(monkeypat
     assert info["batch_available"] is True
     result = await tools["browser_batch"].ainvoke({"steps": [{"op": "read_text", "target": "#status"}]})
     assert result["ok"] is True and result["completed"] == 1
+
+
+@pytest.mark.asyncio
+async def test_create_browser_agent_adds_openai_fallback_middleware(monkeypatch):
+    created = {}
+    primary_model = object()
+    fallback_model = object()
+
+    class FakeAgent:
+        nodes = {}
+
+    def fake_create_agent(**kwargs):
+        created.update(kwargs)
+        return FakeAgent()
+
+    def fake_create_model(*, env_prefix="OPENAI", **_kwargs):
+        return fallback_model if env_prefix == "OPENAI_FALLBACK" else primary_model
+
+    monkeypatch.setenv("OPENAI_MODEL", "primary-model")
+    monkeypatch.setenv("OPENAI_FALLBACK_MODEL", "fallback-model")
+    monkeypatch.setattr(agent_factory.agents, "create_agent", fake_create_agent)
+    monkeypatch.setattr(agent_factory, "get_agent_tools", lambda tools, helper: list(tools))
+    monkeypatch.setattr(agent_factory, "is_openai_compatible_configured", lambda _prefix="OPENAI": True)
+    monkeypatch.setattr(agent_factory, "create_openai_compatible_model", fake_create_model)
+    monkeypatch.setattr(agent_factory, "ContextManagerMiddleware", lambda model: ("context", model))
+    monkeypatch.setattr(agent_factory, "HumanInTheLoopMiddleware", lambda **kwargs: ("hitl", kwargs))
+    monkeypatch.setattr(agent_factory, "ModelFallbackMiddleware", lambda model: ("fallback", model))
+    monkeypatch.setattr(agent_factory, "make_diff_middleware", lambda tools: ("diff", id(tools)))
+
+    await agent_factory.create_browser_agent([object()])
+
+    assert created["model"] is primary_model
+    assert ("fallback", fallback_model) in created["middleware"]
+    assert isinstance(created["middleware"][0], agent_factory.BrowserDisclosureMiddleware)
+    assert created["middleware"].index(("fallback", fallback_model)) < created["middleware"].index(("context", primary_model))

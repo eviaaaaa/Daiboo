@@ -388,8 +388,18 @@ async def chat(request: ChatRequest) -> StreamingResponse:
 
         config: "RunnableConfig" = {"configurable": {"thread_id": request.thread_id}, "recursion_limit": 30}
 
-        # 检查是否存在中断状态
-        snapshot: "StateSnapshot" = await state.agent.aget_state(config)
+        # 检查是否存在中断状态。checkpoint 读取发生在流式响应内部，
+        # 必须按同一 NDJSON 错误协议返回，避免 200 空响应或连接异常。
+        try:
+            snapshot: "StateSnapshot" = await state.agent.aget_state(config)
+        except Exception:
+            logger.exception("Chat state lookup failed for thread {}", request.thread_id)
+            data = json.dumps(
+                {"type": "error", "content": "Agent execution failed. Check server logs."},
+                ensure_ascii=False,
+            )
+            yield f"{data}\n"
+            return
         if snapshot.next:
             # 我们处于中断状态，将用户输入解释为决策
             user_input = request.message.strip().lower()

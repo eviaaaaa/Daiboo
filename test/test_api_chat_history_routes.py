@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 
@@ -76,3 +77,26 @@ async def test_chat_tool_display_uses_text_projection_not_message_repr(monkeypat
     assert "opaque-artifact" not in display
     assert "opaque-replay" not in display
     assert "output_text" not in tools[0]["content"]
+
+
+def test_chat_stream_reports_checkpoint_state_failures_as_ndjson(monkeypatch) -> None:
+    from fastapi.testclient import TestClient
+    import api
+
+    class FailingStateAgent:
+        async def aget_state(self, config):
+            raise RuntimeError("checkpoint unavailable")
+
+    monkeypatch.setattr(api.state, "agent", FailingStateAgent(), raising=False)
+    monkeypatch.setattr(api, "append_chat_message", lambda *args, **kwargs: None)
+
+    response = TestClient(api.app, raise_server_exceptions=False).post(
+        "/chat",
+        json={"message": "audit probe", "thread_id": "checkpoint-failure"},
+    )
+
+    events = [json.loads(line) for line in response.text.splitlines()]
+    assert response.status_code == 200
+    assert events == [
+        {"type": "error", "content": "Agent execution failed. Check server logs."}
+    ]

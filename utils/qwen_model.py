@@ -28,8 +28,12 @@ def _env_value(name: str) -> str:
     return (os.getenv(name) or "").strip()
 
 
-def is_openai_compatible_configured() -> bool:
-    return bool(_env_value("OPENAI_API_KEY"))
+def _provider_env_name(prefix: str, name: str) -> str:
+    return f"{prefix}_{name}"
+
+
+def is_openai_compatible_configured(env_prefix: str = "OPENAI") -> bool:
+    return bool(_env_value(_provider_env_name(env_prefix, "API_KEY")))
 
 
 def _env_bool(name: str, default: bool = False) -> bool:
@@ -41,7 +45,7 @@ def _env_bool(name: str, default: bool = False) -> bool:
     return value in {"true", "1"}
 
 
-def _openai_responses_mode(api_mode: str | None, kwargs: dict) -> bool:
+def _openai_responses_mode(api_mode: str | None, kwargs: dict, env_prefix: str = "OPENAI") -> bool:
     """Make routing explicit rather than relying on model-name heuristics."""
     explicit = kwargs.pop("use_responses_api", None)
     if explicit is not None and not isinstance(explicit, bool):
@@ -50,14 +54,14 @@ def _openai_responses_mode(api_mode: str | None, kwargs: dict) -> bool:
     if not mode and explicit is not None:
         return explicit
     if not mode:
-        mode = _env_value("OPENAI_API_MODE").lower()
-        legacy = _env_value("OPENAI_USE_RESPONSES_API")
-        if mode and legacy and (mode == "responses") != _env_bool("OPENAI_USE_RESPONSES_API"):
-            raise ValueError("OPENAI_API_MODE and OPENAI_USE_RESPONSES_API conflict")
+        mode = _env_value(_provider_env_name(env_prefix, "API_MODE")).lower()
+        legacy = _env_value(_provider_env_name(env_prefix, "USE_RESPONSES_API"))
+        if mode and legacy and (mode == "responses") != _env_bool(_provider_env_name(env_prefix, "USE_RESPONSES_API")):
+            raise ValueError(f"{env_prefix}_API_MODE and {env_prefix}_USE_RESPONSES_API conflict")
         if not mode:
-            return _env_bool("OPENAI_USE_RESPONSES_API")
+            return _env_bool(_provider_env_name(env_prefix, "USE_RESPONSES_API"))
     if mode not in {"chat_completions", "responses"}:
-        raise ValueError("OPENAI_API_MODE must be chat_completions or responses")
+        raise ValueError(f"{env_prefix}_API_MODE must be chat_completions or responses")
     responses = mode == "responses"
     if explicit is not None and responses != explicit:
         raise ValueError("api_mode and use_responses_api conflict")
@@ -71,10 +75,12 @@ def create_openai_compatible_model(
     *,
     api_mode: str | None = None,
     max_output_tokens: int | None = None,
+    env_prefix: str = "OPENAI",
     **extra_kwargs,
 ):
-    """Create a ChatOpenAI model from OPENAI_* environment variables.
+    """Create a ChatOpenAI model from prefixed environment variables.
 
+    env_prefix selects OPENAI_* or OPENAI_FALLBACK_* independently.
     OPENAI_MODEL is required unless model_name is explicit; provider/model
     capabilities are not inferred. OPENAI_API_MODE selects chat_completions
     (default) or responses; OPENAI_USE_RESPONSES_API is a legacy boolean alias.
@@ -95,9 +101,10 @@ def create_openai_compatible_model(
     langchain-openai >=1.7.2 also preserves encrypted_content arriving only on
     SSE output_item.done; the local HTTP contract tests guard that replay path.
     """
-    api_key = _env_value("OPENAI_API_KEY")
+    api_key_name = _provider_env_name(env_prefix, "API_KEY")
+    api_key = _env_value(api_key_name)
     if not api_key:
-        raise RuntimeError("OPENAI_API_KEY is required for OpenAI-compatible model mode")
+        raise RuntimeError(f"{api_key_name} is required for OpenAI-compatible model mode")
 
     try:
         from langchain_openai import ChatOpenAI
@@ -107,24 +114,24 @@ def create_openai_compatible_model(
             "Install it or unset OPENAI_API_KEY to use DashScope/ChatTongyi."
         ) from exc
 
-    configured_model = (model_name or "").strip() or _env_value("OPENAI_MODEL")
+    configured_model = (model_name or "").strip() or _env_value(_provider_env_name(env_prefix, "MODEL"))
     if not configured_model:
-        raise ValueError("OPENAI_MODEL or an explicit model_name is required; no model is guessed")
-    responses = _openai_responses_mode(api_mode, extra_kwargs)
+        raise ValueError(f"{env_prefix}_MODEL or an explicit model_name is required; no model is guessed")
+    responses = _openai_responses_mode(api_mode, extra_kwargs, env_prefix)
     options = dict(extra_kwargs)
     options["use_responses_api"] = responses
     if "streaming" not in options:
-        options["streaming"] = _env_bool("OPENAI_STREAMING")
+        options["streaming"] = _env_bool(_provider_env_name(env_prefix, "STREAMING"))
 
     for field, env_name in (
-        ("verbosity", "OPENAI_VERBOSITY"),
-        ("service_tier", "OPENAI_SERVICE_TIER"),
+        ("verbosity", _provider_env_name(env_prefix, "VERBOSITY")),
+        ("service_tier", _provider_env_name(env_prefix, "SERVICE_TIER")),
     ):
         if field not in options and (value := _env_value(env_name)):
             options[field] = value
 
-    effort = options.pop("reasoning_effort", _env_value("OPENAI_REASONING_EFFORT") or None)
-    summary = _env_value("OPENAI_REASONING_SUMMARY") or None
+    effort = options.pop("reasoning_effort", _env_value(_provider_env_name(env_prefix, "REASONING_EFFORT")) or None)
+    summary = _env_value(_provider_env_name(env_prefix, "REASONING_SUMMARY")) or None
     if responses:
         if "reasoning" not in options:
             reasoning = {}
@@ -152,25 +159,25 @@ def create_openai_compatible_model(
 
     if "max_completion_tokens" not in options and "max_tokens" not in options:
         cap = max_output_tokens
-        if cap is None and (value := _env_value("OPENAI_MAX_OUTPUT_TOKENS")):
+        if cap is None and (value := _env_value(_provider_env_name(env_prefix, "MAX_OUTPUT_TOKENS"))):
             try:
                 cap = int(value)
             except ValueError as exc:
-                raise ValueError("OPENAI_MAX_OUTPUT_TOKENS must be a positive integer") from exc
+                raise ValueError(f"{env_prefix}_MAX_OUTPUT_TOKENS must be a positive integer") from exc
         if cap is not None:
             if isinstance(cap, bool) or not isinstance(cap, int) or cap <= 0:
-                raise ValueError("OPENAI_MAX_OUTPUT_TOKENS must be a positive integer")
+                raise ValueError(f"{env_prefix}_MAX_OUTPUT_TOKENS must be a positive integer")
             # ChatOpenAI renames this field to max_output_tokens for Responses.
             options["max_completion_tokens"] = cap
 
-    if temperature is None and (value := _env_value("OPENAI_TEMPERATURE")):
+    if temperature is None and (value := _env_value(_provider_env_name(env_prefix, "TEMPERATURE"))):
         try:
             temperature = float(value)
         except ValueError as exc:
-            raise ValueError("OPENAI_TEMPERATURE must be a finite number") from exc
+            raise ValueError(f"{env_prefix}_TEMPERATURE must be a finite number") from exc
         if not math.isfinite(temperature):
-            raise ValueError("OPENAI_TEMPERATURE must be a finite number")
-    base_url = _env_value("OPENAI_BASE_URL") or None
+            raise ValueError(f"{env_prefix}_TEMPERATURE must be a finite number")
+    base_url = _env_value(_provider_env_name(env_prefix, "BASE_URL")) or None
     return ChatOpenAI(
         model=configured_model,
         api_key=api_key,

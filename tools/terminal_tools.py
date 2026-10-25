@@ -1,6 +1,7 @@
 import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 from langchain_core.tools import tool
@@ -43,6 +44,34 @@ def _truncate_output(output: str, max_output_chars: int) -> str:
     return f"{output[:max_output_chars]}\n[输出已截断，省略 {omitted} 个字符]"
 
 
+def _terminate_process_tree(process: subprocess.Popen[str]) -> None:
+    """Terminate the shell and descendants owned by this command invocation."""
+    if os.name == "nt":
+        try:
+            subprocess.run(
+                ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                capture_output=True,
+                timeout=2,
+                check=False,
+            )
+        except (OSError, subprocess.SubprocessError):
+            process.kill()
+        return
+
+    try:
+        os.killpg(process.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        return
+
+    try:
+        process.wait(timeout=0.5)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+
+
 def _run_command(
     command: str,
     *,
@@ -54,31 +83,56 @@ def _run_command(
     if max_output_chars is None:
         max_output_chars = int(_env_positive_number("TERMINAL_MAX_OUTPUT_CHARS", 20000))
     try:
-        result = subprocess.run(
-            [*_select_shell(), command],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=timeout_seconds,
-        )
-    except subprocess.TimeoutExpired as exc:
-        partial_stdout = exc.stdout.decode("utf-8", "replace") if isinstance(exc.stdout, bytes) else (exc.stdout or "")
-        partial_stderr = exc.stderr.decode("utf-8", "replace") if isinstance(exc.stderr, bytes) else (exc.stderr or "")
-        partial = partial_stdout
-        if partial_stderr:
-            partial += f"\n[Stderr]:\n{partial_stderr}"
-        partial = _truncate_output(partial.strip(), max_output_chars) if partial else ""
-        suffix = f"\n{partial}" if partial else ""
-        return f"执行超时（{timeout_seconds:g} 秒）。{suffix}".strip()
+        if os.name == "nt":
+            process = subprocess.Popen(
+                [*_select_shell(), command],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
+            )
+        else:
+            process = subprocess.Popen(
+                [*_select_shell(), command],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                start_new_session=True,
+            )
+        try:
+            stdout, stderr = process.communicate(timeout=timeout_seconds)
+        except subprocess.TimeoutExpired as exc:
+            _terminate_process_tree(process)
+            try:
+                stdout, stderr = process.communicate(timeout=1)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                stdout, stderr = process.communicate()
+
+            partial_stdout = stdout or (
+                exc.stdout.decode("utf-8", "replace") if isinstance(exc.stdout, bytes) else (exc.stdout or "")
+            )
+            partial_stderr = stderr or (
+                exc.stderr.decode("utf-8", "replace") if isinstance(exc.stderr, bytes) else (exc.stderr or "")
+            )
+            partial = partial_stdout
+            if partial_stderr:
+                partial += f"\n[Stderr]:\n{partial_stderr}"
+            partial = _truncate_output(partial.strip(), max_output_chars) if partial else ""
+            suffix = f"\n{partial}" if partial else ""
+            return f"执行超时（{timeout_seconds:g} 秒）。{suffix}".strip()
     except Exception as exc:
         return f"执行失败: {exc}"
 
-    output = result.stdout or ""
-    if result.stderr:
-        output += f"\n[Stderr]:\n{result.stderr}"
+    output = stdout or ""
+    if stderr:
+        output += f"\n[Stderr]:\n{stderr}"
     output = _truncate_output(output.strip(), max_output_chars) if output else "命令执行成功（无输出）。"
-    return f"[Exit code: {result.returncode}]\n{output}"
+    return f"[Exit code: {process.returncode}]\n{output}"
 
 
 @tool
