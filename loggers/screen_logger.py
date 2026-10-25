@@ -140,7 +140,7 @@ async def log_response_to_database(state:types.StateT, runtime) -> None:
             fts_vector=None
         )
         try:
-            save_agent_trace_to_pgvector(trace)
+            await asyncio.to_thread(save_agent_trace_to_pgvector, trace)
             print(f"✅ 链路已追加: Session={session_id[:8]}..., Turn={turn_number}, ID={trace.id}")
         except Exception as e:
             print(f"❌ 链路追加失败: {e}")

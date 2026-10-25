@@ -1,3 +1,9 @@
+import os
+import time
+from pathlib import Path
+
+import pytest
+
 from tools import terminal_tools
 
 
@@ -24,6 +30,31 @@ def test_run_command_times_out():
     result = terminal_tools._run_command("sleep 2", timeout_seconds=0.01, max_output_chars=1000)
 
     assert "执行超时" in result
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX process-group regression")
+def test_run_command_timeout_stops_descendants(tmp_path: Path):
+    pid_file = tmp_path / "child.pid"
+    result = terminal_tools._run_command(
+        f"sleep 30 & echo $! > {pid_file}; wait",
+        timeout_seconds=0.1,
+        max_output_chars=1000,
+    )
+    child_pid = int(pid_file.read_text())
+
+    def child_is_running() -> bool:
+        try:
+            state = Path(f"/proc/{child_pid}/stat").read_text().split()[2]
+        except FileNotFoundError:
+            return False
+        return state not in {"Z", "X"}
+
+    deadline = time.monotonic() + 1
+    while child_is_running() and time.monotonic() < deadline:
+        time.sleep(0.01)
+
+    assert "执行超时" in result
+    assert not child_is_running()
 
 
 def test_run_command_truncates_large_output():

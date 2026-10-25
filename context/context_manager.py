@@ -1,6 +1,7 @@
 import uuid
 import os
 import json
+from contextvars import ContextVar
 from typing import Any, Callable, Iterable, Optional
 
 from langchain_core.messages import (
@@ -82,7 +83,10 @@ class ContextManagerMiddleware(AgentMiddleware):
 
         self.file_store_path = file_store_path
         self.token_counter = token_counter
-        self.session_id = session_id
+        self._session_id = ContextVar(
+            "context_manager_session_id",
+            default=session_id,
+        )
         self.model = model
 
         self.recent_tool_messages_to_keep = recent_tool_messages_to_keep
@@ -110,7 +114,7 @@ class ContextManagerMiddleware(AgentMiddleware):
 
     def _save_to_file(self, content: str, prefix: str) -> str:
         """将内容保存到文件并返回路径"""
-        file_name = build_timestamped_filename(prefix, self.session_id)
+        file_name = build_timestamped_filename(prefix, self._session_id.get())
         file_path = os.path.join(self.file_store_path, file_name)
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(content)
@@ -159,7 +163,7 @@ class ContextManagerMiddleware(AgentMiddleware):
         if not session_id and messages:
             session_id = messages[0].id
         if session_id:
-            self.session_id = str(session_id)
+            self._session_id.set(str(session_id))
 
     def _content_to_text(self, content: Any) -> str:
         """将字符串或多模态 content 统一转为可计数文本。"""
