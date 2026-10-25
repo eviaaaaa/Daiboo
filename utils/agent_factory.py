@@ -1,5 +1,5 @@
 from langchain import agents
-from langchain.agents.middleware import HumanInTheLoopMiddleware
+from langchain.agents.middleware import HumanInTheLoopMiddleware, ModelFallbackMiddleware
 from typing import TYPE_CHECKING, Any
 import os
 from context.context_manager import ContextManagerMiddleware
@@ -81,12 +81,20 @@ async def create_browser_agent(
 
     # 初始化模型。默认保持 Qwen/DashScope；如果显式提供 OPENAI_API_KEY，
     # 则走 OpenAI 兼容接口，便于复用 Hermes/Gateway 的本地模型配置。
+    fallback_model = None
     if is_openai_compatible_configured():
         model = create_openai_compatible_model(
             model_name=os.getenv("OPENAI_MODEL") or model_name,
             temperature=0.0,
             request_timeout=5000,
         )
+        if is_openai_compatible_configured("OPENAI_FALLBACK"):
+            fallback_model = create_openai_compatible_model(
+                model_name=os.getenv("OPENAI_FALLBACK_MODEL"),
+                temperature=0.0,
+                request_timeout=5000,
+                env_prefix="OPENAI_FALLBACK",
+            )
     else:
         model = create_qwen_model(
             model_name=model_name,
@@ -113,23 +121,27 @@ async def create_browser_agent(
     _checkpointer = checkpointer if checkpointer is not None else InMemorySaver()
 
     # 创建 Agent（最耗时的操作）
+    middleware = [
+        context_middleware,
+        hitl_middleware,
+        log_agent_start,
+        log_playwright_tool_call,
+        log_agent_response,
+        log_response_to_database,  # 先记录链路
+        log_experience,            # 再异步总结经验
+        diff_middleware,           # 给 MCP 写动作自动附 diff + transients
+        delay_tool_call,
+    ]
+    if fallback_model is not None:
+        middleware.insert(2, ModelFallbackMiddleware(fallback_model))
+
     browser_agent = agents.create_agent(
         system_prompt=system_prompt.system_prompt,
         state_schema=MyState,
         checkpointer=_checkpointer,
         model=model,
         tools=tools,
-        middleware=[
-            context_middleware,
-            hitl_middleware,
-            log_agent_start,
-            log_playwright_tool_call,
-            log_agent_response,
-            log_response_to_database,  # 先记录链路
-            log_experience,            # 再异步总结经验
-            diff_middleware,           # 给 MCP 写动作自动附 diff + transients
-            delay_tool_call,
-        ],
+        middleware=middleware,
     )
 
     # 修补 ToolNode：捕获所有工具执行异常并返回为 ToolMessage

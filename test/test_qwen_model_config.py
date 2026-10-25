@@ -89,3 +89,33 @@ def test_create_openai_compatible_model_requires_api_key(monkeypatch) -> None:
 
     with pytest.raises(RuntimeError, match="OPENAI_API_KEY is required"):
         qwen_model.create_openai_compatible_model()
+
+
+def test_create_openai_compatible_model_supports_responses_api_flags(monkeypatch) -> None:
+    fake_langchain_openai = types.SimpleNamespace(ChatOpenAI=_FakeChatOpenAI)
+    monkeypatch.setitem(sys.modules, "langchain_openai", fake_langchain_openai)
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("OPENAI_USE_RESPONSES_API", "true")
+    monkeypatch.setenv("OPENAI_STREAMING", "1")
+
+    qwen_model = _load_qwen_model_module()
+    model = qwen_model.create_openai_compatible_model()
+
+    assert model.kwargs["use_responses_api"] is True
+    assert model.kwargs["streaming"] is True
+
+
+def test_create_openai_compatible_model_supports_fallback_prefix(monkeypatch) -> None:
+    fake_langchain_openai = types.SimpleNamespace(ChatOpenAI=_FakeChatOpenAI)
+    monkeypatch.setitem(sys.modules, "langchain_openai", fake_langchain_openai)
+    monkeypatch.setenv("OPENAI_FALLBACK_API_KEY", "fallback-key")
+    monkeypatch.setenv("OPENAI_FALLBACK_BASE_URL", "https://fallback.example/v1")
+    monkeypatch.setenv("OPENAI_FALLBACK_MODEL", "fallback-model")
+
+    qwen_model = _load_qwen_model_module()
+    model = qwen_model.create_openai_compatible_model(env_prefix="OPENAI_FALLBACK")
+
+    assert qwen_model.is_openai_compatible_configured("OPENAI_FALLBACK") is True
+    assert model.kwargs["api_key"] == "fallback-key"
+    assert model.kwargs["base_url"] == "https://fallback.example/v1"
+    assert model.kwargs["model"] == "fallback-model"

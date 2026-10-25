@@ -72,8 +72,10 @@ cp .env.example .env
 请至少填写 `.env` 中以下配置：
 
 - 主聊天模型二选一：
-  - OpenAI 兼容接口：`OPENAI_API_KEY`，可选 `OPENAI_BASE_URL`、`OPENAI_MODEL`
+  - OpenAI 兼容接口：`OPENAI_API_KEY`，可选 `OPENAI_BASE_URL`、`OPENAI_MODEL`。仅支持 `/v1/responses` 且要求流式请求的渠道还需设置 `OPENAI_USE_RESPONSES_API=true`、`OPENAI_STREAMING=true`。
   - DashScope 兼容路径：`DASHSCOPE_API_KEY`（当 `OPENAI_API_KEY` 留空时自动回退）
+- OpenAI 兼容主模型可选故障备用：`OPENAI_FALLBACK_API_KEY`、`OPENAI_FALLBACK_BASE_URL`、`OPENAI_FALLBACK_MODEL`；备用渠道也可独立设置 `OPENAI_FALLBACK_USE_RESPONSES_API` 与 `OPENAI_FALLBACK_STREAMING`。
+- Embedding 与聊天模型隔离：只有显式设置 `OPENAI_EMBEDDING_MODEL`（以及可选的 `OPENAI_EMBEDDING_API_KEY`、`OPENAI_EMBEDDING_BASE_URL`）才会启用 OpenAI 兼容 Embedding；否则继续使用 DashScope 或本地确定性 Embedding，不会把不支持 `/embeddings` 的聊天渠道误用作向量模型。
 - hCaptcha 求解二选一：
   - GLM 路径：`LLM_PROVIDER=glm`、`GLM_API_KEY`，可选 `GLM_BASE_URL`、`GLM_MODEL`
   - Gemini 路径：`GEMINI_API_KEY`

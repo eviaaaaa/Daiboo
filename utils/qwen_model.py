@@ -27,24 +27,41 @@ def _env_value(name: str) -> str:
     return (os.getenv(name) or "").strip()
 
 
-def is_openai_compatible_configured() -> bool:
-    return bool(_env_value("OPENAI_API_KEY"))
+def _provider_env_name(prefix: str, name: str) -> str:
+    return f"{prefix}_{name}"
+
+
+def _optional_bool_env(name: str) -> bool | None:
+    value = _env_value(name).lower()
+    if not value:
+        return None
+    if value in {"1", "true", "yes", "on"}:
+        return True
+    if value in {"0", "false", "no", "off"}:
+        return False
+    raise ValueError(f"{name} must be a boolean value")
+
+
+def is_openai_compatible_configured(env_prefix: str = "OPENAI") -> bool:
+    return bool(_env_value(_provider_env_name(env_prefix, "API_KEY")))
 
 
 def create_openai_compatible_model(
     model_name: str | None = None,
     temperature: float = 0.0,
     request_timeout: int = 3000,
+    env_prefix: str = "OPENAI",
     **extra_kwargs,
 ):
-    """Create a ChatOpenAI model from OPENAI_* environment variables.
+    """Create a ChatOpenAI model from prefixed environment variables.
 
     The import is intentionally lazy so lightweight tests that only exercise
     non-LLM helpers do not require ``langchain-openai`` to be installed.
     """
-    api_key = _env_value("OPENAI_API_KEY")
+    api_key_name = _provider_env_name(env_prefix, "API_KEY")
+    api_key = _env_value(api_key_name)
     if not api_key:
-        raise RuntimeError("OPENAI_API_KEY is required for OpenAI-compatible model mode")
+        raise RuntimeError(f"{api_key_name} is required for OpenAI-compatible model mode")
 
     try:
         from langchain_openai import ChatOpenAI
@@ -54,8 +71,22 @@ def create_openai_compatible_model(
             "Install it or unset OPENAI_API_KEY to use DashScope/ChatTongyi."
         ) from exc
 
-    configured_model = (model_name or "").strip() or _env_value("OPENAI_MODEL") or "gpt-4o-mini"
-    base_url = _env_value("OPENAI_BASE_URL") or None
+    configured_model = (
+        (model_name or "").strip()
+        or _env_value(_provider_env_name(env_prefix, "MODEL"))
+        or "gpt-4o-mini"
+    )
+    base_url = _env_value(_provider_env_name(env_prefix, "BASE_URL")) or None
+    use_responses_api = _optional_bool_env(
+        _provider_env_name(env_prefix, "USE_RESPONSES_API")
+    )
+    streaming = _optional_bool_env(_provider_env_name(env_prefix, "STREAMING"))
+
+    if use_responses_api is not None:
+        extra_kwargs.setdefault("use_responses_api", use_responses_api)
+    if streaming is not None:
+        extra_kwargs.setdefault("streaming", streaming)
+
     return ChatOpenAI(
         model=configured_model,
         api_key=api_key,
