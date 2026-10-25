@@ -37,7 +37,8 @@ def test_run_command_timeout_stops_descendants(tmp_path: Path):
     pid_file = tmp_path / "child.pid"
     result = terminal_tools._run_command(
         f"sleep 30 & echo $! > {pid_file}; wait",
-        timeout_seconds=0.1,
+        # Leave room for login-shell startup on shared CI runners.
+        timeout_seconds=2,
         max_output_chars=1000,
     )
     child_pid = int(pid_file.read_text())
